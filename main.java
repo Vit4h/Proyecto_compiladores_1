@@ -1,9 +1,17 @@
+import java.io.IOException;
 import java.util.List;
 
 public class main {
   public static void main(String[] args) {
-      String input = "Abc = 33*sum*-1.00;If (abc == 90) return “si”; else return “no”;";
-      List<Token> tokens = Lexer.analizar(input);
-      tokens.forEach(System.out::println);
+      try {
+          List<Token> tokensArchivo = Lexer.analizarArchivo("archivo.txt");
+          for (Token token : tokensArchivo) {
+              System.out.println(token);
+          }
+      } catch (IOException e) {
+          System.err.println("Error al leer el archivo: " + e.getMessage());
+      } catch (RuntimeException e) {
+          System.err.println(e.getMessage());
+      }
   }
 }

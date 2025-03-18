@@ -4,7 +4,7 @@ import java.io.*;
 
 // Enum para representar los diferentes tipos de tokens
 enum TokenType {
-    OPERADOR, AGRUPADOR, NUMERO, IDENTIFICADOR, PALABRA_RESERVADA, DESCONOCIDO, OPERADOR_LOGICO, LITERAL
+    OPERADOR, AGRUPADOR, NUMERO, IDENTIFICADOR, PALABRA_RESERVADA, DESCONOCIDO, OPERADOR_LOGICO, LITERAL, PUNTO_Y_COMA
 }
 
 // Clase que representa un Token
@@ -27,7 +27,8 @@ class Token {
 class Lexer {
     private static final String OPERADORES = "[+\\-*/^]";
     private static final String OPERADORES_LOGICOS = "(\\*\\*|==|>=|<=|!=|::|=)";
-    private static final String AGRUPADORES = "[(){}\\[\\]<>]";
+    private static final String AGRUPADORES = "[(){}\\[\\]<>]"; // No incluye ;
+    private static final String PUNTO_Y_COMA_REGEX = ";"; // Expresión regular para ;
     private static final String NUMERO = "-?\\d+(\\.\\d+)?";
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
     private static final Set<String> PALABRAS_RESERVADAS = Set.of("cuadrado", "if", "else", "return", "while", "for");
@@ -36,7 +37,7 @@ class Lexer {
 
     private static final Pattern PATRON = Pattern.compile(
         OPERADORES_LOGICOS + "|" + OPERADORES + "|" + AGRUPADORES + "|" + 
-        NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + ESPACIO,
+        NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + PUNTO_Y_COMA_REGEX + "|" + ESPACIO,
         Pattern.CASE_INSENSITIVE // Hace que el regex sea insensible a mayúsculas
     );
 
@@ -58,6 +59,8 @@ class Lexer {
             return new Token(TokenType.PALABRA_RESERVADA, lexema);
         } else if (lexema.matches(IDENTIFICADOR)) {
             return new Token(TokenType.IDENTIFICADOR, lexema);
+        } else if (lexema.equals(";")) {
+            return new Token(TokenType.PUNTO_Y_COMA, lexema);
         } else {
             return new Token(TokenType.DESCONOCIDO, lexema);
         }
@@ -81,14 +84,35 @@ class Lexer {
         if (!archivo.exists()) {
             throw new FileNotFoundException("El archivo no existe: " + ruta);
         }
-
-        StringBuilder contenido = new StringBuilder();
+    
+        List<Token> tokens = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
             String linea;
             while ((linea = br.readLine()) != null) {
-                contenido.append(linea).append("\n");
+                linea = linea.trim();
+                if (!linea.isEmpty()) {
+                    List<Token> tokensLinea = analizar(linea);
+    
+                    if (!tokensLinea.isEmpty()) {
+                        Token primerToken = tokensLinea.get(0);
+                        Token ultimoToken = tokensLinea.get(tokensLinea.size() - 1);
+    
+                        // No exigir ";" en:
+                        // - Estructuras de control (`if`, `while`, `for`)
+                        // - Líneas que terminan en "{"
+                        // - Líneas que terminan en "}"
+                        if (!(primerToken.tipo == TokenType.PALABRA_RESERVADA && PALABRAS_RESERVADAS.contains(primerToken.valor)) 
+                            && !ultimoToken.valor.equals("{") 
+                            && !ultimoToken.valor.equals("}")  // Nueva corrección
+                            && ultimoToken.tipo != TokenType.PUNTO_Y_COMA) {
+                            throw new RuntimeException("Error: La línea no termina con ';' correctamente → " + linea);
+                        }
+                    }
+    
+                    tokens.addAll(tokensLinea);
+                }
             }
         }
-        return analizar(contenido.toString());
-    }
+        return tokens;
+    }    
 }
