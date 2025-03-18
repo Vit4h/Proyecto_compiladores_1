@@ -4,6 +4,7 @@ export default function TextInputDisplay() {
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
 
+
   const handleTextChange = (e) => {
     setText(e.target.value);
     if (e.target.value) {
@@ -44,11 +45,29 @@ export default function TextInputDisplay() {
         style={{ marginBottom: "15px" }}
         disabled={text !== ""}
       />
-      <div style={{ marginTop: "10px", padding: "10px", backgroundColor: "white", boxShadow: "0px 0px 8px rgba(0,0,0,0.1)", borderRadius: "5px", width: "220px", textAlign: "center" }}>
-        <p style={{ fontSize: "16px", fontWeight: "500" }}>{text}</p>
-        {file && <p style={{ marginTop: "10px", fontSize: "14px", color: "gray" }}>Archivo seleccionado: {file.name}</p>}
+
+    
+        <div 
+        style={{ marginTop: "25px", padding: "10px",  backgroundColor: "rgb(182, 215, 228)", boxShadow: "0px 0px 8px rgba(0,0,0,0.1)", borderRadius: "5px", width: "150px", textAlign: "center" }}
+        onMouseEnter={(e) => (e.target.style.backgroundColor = "rgb(0, 183, 255)")}
+        onMouseLeave={(e) => (e.target.style.backgroundColor = "rgb(0, 200, 255)")}
+        
+
+        >
+        <p style={{ fontSize: "12px", fontWeight: "bold",  }}>Pulsa aquí para utilizar el analizador Lexico</p>
+    
+
+    
       </div>
+
+      <div style={{ marginTop:"30px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "500px" }}>
+        <h1>Entrada</h1>
+        <h1>Salida</h1>
+      </div>
+
+
     </div>
+    
   );
 }
 
