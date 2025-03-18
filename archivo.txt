@@ -1,3 +1,6 @@
 IF (x >= 10) {
-    RETURN "Hola" ;
+    RETURN "Hola" ; /* hola como estan 
+    sdak */
+    
+   
 } 

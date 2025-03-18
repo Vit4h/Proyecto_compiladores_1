@@ -27,22 +27,104 @@ class Token {
 class Lexer {
     private static final String OPERADORES = "[+\\-*/^]";
     private static final String OPERADORES_LOGICOS = "(\\*\\*|==|>=|<=|!=|::|=)";
-    private static final String AGRUPADORES = "[(){}\\[\\]<>]"; // No incluye ;
-    private static final String PUNTO_Y_COMA_REGEX = ";"; // Expresión regular para ;
+    private static final String AGRUPADORES = "[(){}\\[\\]<>]";
+    private static final String PUNTO_Y_COMA_REGEX = ";";
     private static final String NUMERO = "-?\\d+(\\.\\d+)?";
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
     private static final Set<String> PALABRAS_RESERVADAS = Set.of("cuadrado", "if", "else", "return", "while", "for");
     private static final String LITERAL = "\"([^\"\\\\]*(\\\\.[^\"\\\\]*)*)\"|'([^'\\\\]*(\\\\.[^'\\\\]*)*)'";
     private static final String ESPACIO = "\\s+";
 
+    // Expresiones regulares para comentarios
+    private static final String COMENTARIO_SIMPLE = "//.*";  // Comentarios de una línea
+
     private static final Pattern PATRON = Pattern.compile(
-        OPERADORES_LOGICOS + "|" + OPERADORES + "|" + AGRUPADORES + "|" + 
-        NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + PUNTO_Y_COMA_REGEX + "|" + ESPACIO,
-        Pattern.CASE_INSENSITIVE // Hace que el regex sea insensible a mayúsculas
+        COMENTARIO_SIMPLE + "|" + OPERADORES_LOGICOS + "|" + OPERADORES + "|" + 
+        AGRUPADORES + "|" + NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + PUNTO_Y_COMA_REGEX + "|" + ESPACIO,
+        Pattern.CASE_INSENSITIVE
     );
 
+    public static List<Token> analizar(String input) {
+        List<Token> tokens = new ArrayList<>();
+        Matcher matcher = PATRON.matcher(input);
+
+        while (matcher.find()) {
+            String lexema = matcher.group();
+            if (!lexema.matches(ESPACIO) && !lexema.matches(COMENTARIO_SIMPLE)) {
+                tokens.add(crearToken(lexema));
+            }
+        }
+        return tokens;
+    }
+
+    public static List<Token> analizarArchivo(String ruta) throws IOException {
+        File archivo = new File(ruta);
+        if (!archivo.exists()) {
+            throw new FileNotFoundException("El archivo no existe: " + ruta);
+        }
+    
+        List<Token> tokens = new ArrayList<>();
+        boolean enComentarioMultilinea = false;
+    
+        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
+            String linea;
+            while ((linea = br.readLine()) != null) {
+                linea = linea.trim();
+    
+                // 🚀 Manejo de comentarios de múltiples líneas
+                if (enComentarioMultilinea) {
+                    if (linea.contains("*/")) {
+                        enComentarioMultilinea = false;
+                        linea = linea.substring(linea.indexOf("*/") + 2).trim();
+                    } else {
+                        continue; // Ignorar línea dentro del comentario
+                    }
+                }
+    
+                // Eliminar comentario en la misma línea después de código
+                if (linea.contains("/*")) {
+                    int inicioComentario = linea.indexOf("/*");
+                    if (linea.contains("*/")) { 
+                        // Comentario de una sola línea (ej: `RETURN "Hola"; /* Comentario */`)
+                        linea = linea.substring(0, inicioComentario).trim();
+                    } else {
+                        // Inicio de comentario de múltiples líneas
+                        enComentarioMultilinea = true;
+                        linea = linea.substring(0, inicioComentario).trim();
+                    }
+                }
+    
+                // Eliminar comentarios de una sola línea (`//`)
+                if (linea.contains("//")) {
+                    linea = linea.substring(0, linea.indexOf("//")).trim();
+                }
+    
+                if (!linea.isEmpty()) {
+                    List<Token> tokensLinea = analizar(linea);
+    
+                    if (!tokensLinea.isEmpty()) {
+                        Token primerToken = tokensLinea.get(0);
+                        Token ultimoToken = tokensLinea.get(tokensLinea.size() - 1);
+    
+                        // No exigir ";" en:
+                        // - Estructuras de control (`if`, `while`, `for`)
+                        // - Líneas que terminan en "{"
+                        // - Líneas que terminan en "}"
+                        if (!(primerToken.tipo == TokenType.PALABRA_RESERVADA && PALABRAS_RESERVADAS.contains(primerToken.valor)) 
+                            && !ultimoToken.valor.equals("{") 
+                            && !ultimoToken.valor.equals("}")  
+                            && ultimoToken.tipo != TokenType.PUNTO_Y_COMA) {
+                            throw new RuntimeException("Error: La línea no termina con ';' correctamente → " + linea);
+                        }
+                    }
+                    tokens.addAll(tokensLinea);
+                }
+            }
+        }
+        return tokens;
+    }
+
     private static Token crearToken(String lexema) {
-        // Convertir el lexema a minúsculas para comparar con palabras reservadas
         String lexemaMinusculas = lexema.toLowerCase();
 
         if (lexema.matches(OPERADORES_LOGICOS)) {
@@ -65,54 +147,4 @@ class Lexer {
             return new Token(TokenType.DESCONOCIDO, lexema);
         }
     }
-
-    public static List<Token> analizar(String input) {
-        List<Token> tokens = new ArrayList<>();
-        Matcher matcher = PATRON.matcher(input);
-
-        while (matcher.find()) {
-            String lexema = matcher.group();
-            if (!lexema.matches(ESPACIO)) {
-                tokens.add(crearToken(lexema));
-            }
-        }
-        return tokens;
-    }
-
-    public static List<Token> analizarArchivo(String ruta) throws IOException {
-        File archivo = new File(ruta);
-        if (!archivo.exists()) {
-            throw new FileNotFoundException("El archivo no existe: " + ruta);
-        }
-    
-        List<Token> tokens = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
-            String linea;
-            while ((linea = br.readLine()) != null) {
-                linea = linea.trim();
-                if (!linea.isEmpty()) {
-                    List<Token> tokensLinea = analizar(linea);
-    
-                    if (!tokensLinea.isEmpty()) {
-                        Token primerToken = tokensLinea.get(0);
-                        Token ultimoToken = tokensLinea.get(tokensLinea.size() - 1);
-    
-                        // No exigir ";" en:
-                        // - Estructuras de control (`if`, `while`, `for`)
-                        // - Líneas que terminan en "{"
-                        // - Líneas que terminan en "}"
-                        if (!(primerToken.tipo == TokenType.PALABRA_RESERVADA && PALABRAS_RESERVADAS.contains(primerToken.valor)) 
-                            && !ultimoToken.valor.equals("{") 
-                            && !ultimoToken.valor.equals("}")  // Nueva corrección
-                            && ultimoToken.tipo != TokenType.PUNTO_Y_COMA) {
-                            throw new RuntimeException("Error: La línea no termina con ';' correctamente → " + linea);
-                        }
-                    }
-    
-                    tokens.addAll(tokensLinea);
-                }
-            }
-        }
-        return tokens;
-    }    
 }
