@@ -2,10 +2,12 @@ import java.util.*;
 import java.util.regex.*;
 import java.io.*;
 
+// Enum para representar los diferentes tipos de tokens
 enum TokenType {
     OPERADOR, AGRUPADOR, NUMERO, IDENTIFICADOR, PALABRA_RESERVADA, DESCONOCIDO, OPERADOR_LOGICO, LITERAL
 }
 
+// Clase que representa un Token
 class Token {
     TokenType tipo;
     String valor;
@@ -21,6 +23,7 @@ class Token {
     }
 }
 
+// Analizador léxico con buffer
 class Lexer {
     private static final String OPERADORES = "[+\\-*/^]";
     private static final String OPERADORES_LOGICOS = "(\\*\\*|==|>=|<=|!=|::|=)";
@@ -33,10 +36,14 @@ class Lexer {
 
     private static final Pattern PATRON = Pattern.compile(
         OPERADORES_LOGICOS + "|" + OPERADORES + "|" + AGRUPADORES + "|" + 
-        NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + ESPACIO
+        NUMERO + "|" + LITERAL + "|" + IDENTIFICADOR + "|" + ESPACIO,
+        Pattern.CASE_INSENSITIVE // Hace que el regex sea insensible a mayúsculas
     );
 
     private static Token crearToken(String lexema) {
+        // Convertir el lexema a minúsculas para comparar con palabras reservadas
+        String lexemaMinusculas = lexema.toLowerCase();
+
         if (lexema.matches(OPERADORES_LOGICOS)) {
             return new Token(TokenType.OPERADOR_LOGICO, lexema);
         } else if (lexema.matches(OPERADORES)) {
@@ -47,7 +54,7 @@ class Lexer {
             return new Token(TokenType.NUMERO, lexema);
         } else if (lexema.matches(LITERAL)) {
             return new Token(TokenType.LITERAL, lexema);
-        } else if (PALABRAS_RESERVADAS.contains(lexema)) {
+        } else if (PALABRAS_RESERVADAS.contains(lexemaMinusculas)) {
             return new Token(TokenType.PALABRA_RESERVADA, lexema);
         } else if (lexema.matches(IDENTIFICADOR)) {
             return new Token(TokenType.IDENTIFICADOR, lexema);
