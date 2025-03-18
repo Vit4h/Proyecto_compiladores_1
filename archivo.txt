@@ -1,6 +1,7 @@
-IF (x >= 10) {
-    RETURN "Hola" ; /* hola como estan 
-    sdak */
-    
-   
-} 
+int x = 100; 
+double pi = -3.14159;
+boolean flag = true;
+char letra = 'A';/* necesito pizzas 
+para hoy*/
+string texto = "Hola Mundo";
+//como estan 
