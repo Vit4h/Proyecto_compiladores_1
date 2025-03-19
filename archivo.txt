@@ -1,8 +1,1 @@
-int x = 100; 
-double pi = -3.14159;
-boolean flag = true;
-char letra = 'A';/* necesito pizzas 
-para hoy*/
-string texto = "Hola Mundo";
-int z = 100
-//como estan 
+boolean resultado = (5 > 3) && !(4 == 4) || false;
