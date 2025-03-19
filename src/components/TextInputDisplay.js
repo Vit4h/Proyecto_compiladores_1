@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 export default function TextInputDisplay() {
   const [text, setText] = useState("");
+  const [fileContent, setFileContent] = useState("");
   const [file, setFile] = useState(null);
 
 
@@ -9,13 +10,22 @@ export default function TextInputDisplay() {
     setText(e.target.value);
     if (e.target.value) {
       setFile(null);
+      setFileContent(e.target.value);
     }
   };
 
-  const handleFileChange = (event) => {
+
+  const handleFileChange = async (event) => {
     if (event.target.files.length > 0) {
-      setFile(event.target.files[0]);
-      setText("");
+      const selectedFile = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        setFileContent(content);
+        setText("");
+      };
+      reader.readAsText(selectedFile);
+      setFile(selectedFile);
     }
   };
 
@@ -65,9 +75,17 @@ export default function TextInputDisplay() {
         <h1>Salida</h1>
       </div>
 
+      <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between", width: "80%", padding: "0 50px" }}>
+        <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
+          {fileContent || text}
+        </div>
+        <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
+          {/* Aquí irá la salida posteriormente */}
+        </div>
+      </div>
+
 
     </div>
     
   );
 }
-
