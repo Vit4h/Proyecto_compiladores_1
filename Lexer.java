@@ -4,7 +4,8 @@ import java.io.*;
 
 enum TokenType {
     OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO, AGRUPADOR, NUMERO, IDENTIFICADOR, 
-    PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, DESCONOCIDO
+    PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, IF, ELSE, ELSE_IF, 
+    DESCONOCIDO
 }
 
 class Token {
@@ -23,12 +24,15 @@ class Token {
 }
 
 class Lexer {
-    // Operadores
+    // Palabras clave
+    private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else");
+
+    // Expresiones regulares
     private static final String OPERADORES_COMPARACION = "(==|>=|<=|!=|>|<)";
     private static final String OPERADORES_LOGICOS = "(\\|\\||&&|!)";
     private static final String OPERADORES_ARITMETICOS = "(\\+\\+|--|\\+|\\-|\\*|\\/|\\^|#)";
     private static final String OPERADOR_ASIGNACION = "=";
-    private static final String AGRUPADORES = "[(){}\\[\\]<>]";
+    private static final String AGRUPADORES = "[(){}]";
     private static final String PUNTO_Y_COMA_REGEX = ";";
     private static final String ESPACIO = "\\s+";
 
@@ -89,12 +93,18 @@ class Lexer {
             return new Token(TokenType.AGRUPADOR, lexema);
         } else if (lexema.matches(PUNTO_Y_COMA_REGEX)) {
             return new Token(TokenType.PUNTO_Y_COMA, lexema);
+        } else if (lexema.equals("if")) {
+            return new Token(TokenType.IF, lexema);
+        } else if (lexema.equals("else")) {
+            return new Token(TokenType.ELSE, lexema);
         } else if (lexema.matches(IDENTIFICADOR)) {
             return new Token(TokenType.IDENTIFICADOR, lexema);
         } else {
             return new Token(TokenType.DESCONOCIDO, lexema);
         }
     }
+
+
 
 
 
