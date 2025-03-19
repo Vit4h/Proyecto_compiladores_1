@@ -4,8 +4,7 @@ import java.io.*;
 
 enum TokenType {
     OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO, AGRUPADOR, NUMERO, IDENTIFICADOR, 
-    PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, IF, ELSE, ELSE_IF, 
-    DESCONOCIDO
+    PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, FUNCION_RESERVADA, DESCONOCIDO
 }
 
 class Token {
@@ -24,19 +23,19 @@ class Token {
 }
 
 class Lexer {
-    // Palabras clave
-    private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else");
+    // Palabras clave (insensible a mayúsculas)
+    private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else", "for", "while", "do");
+    private static final Set<String> TIPOS_DATO = Set.of("int", "double", "boolean", "char", "string");
+    private static final Set<String> FUNCIONES_RESERVADAS = Set.of("EscribirLinea", "Escribir", "Longitud", "aCadena");
 
     // Expresiones regulares
     private static final String OPERADORES_COMPARACION = "(==|>=|<=|!=|>|<)";
     private static final String OPERADORES_LOGICOS = "(\\|\\||&&|!)";
-    private static final String OPERADORES_ARITMETICOS = "(\\+\\+|--|\\+|\\-|\\*|\\/|\\^|#)";
+    private static final String OPERADORES_ARITMETICOS =  "(\\+\\+|--|\\+|\\-|\\*|\\/|\\^|#)";
     private static final String OPERADOR_ASIGNACION = "=";
     private static final String AGRUPADORES = "[(){}]";
     private static final String PUNTO_Y_COMA_REGEX = ";";
     private static final String ESPACIO = "\\s+";
-
-    private static final Set<String> TIPOS_DATO = Set.of("int", "double", "boolean", "char", "string");
 
     private static final String INT_NUMERO = "-?\\d+";
     private static final String DOUBLE_NUMERO = "-?\\d+\\.\\d+"; 
@@ -69,8 +68,12 @@ class Lexer {
     }
 
     private static Token crearToken(String lexema) {
-        if (TIPOS_DATO.contains(lexema.toLowerCase())) {
+        String lexemaLower = lexema.toLowerCase();
+
+        if (TIPOS_DATO.contains(lexemaLower)) {
             return new Token(TokenType.TIPO_DATO, lexema);
+        } else if (FUNCIONES_RESERVADAS.contains(lexema)) {
+            return new Token(TokenType.FUNCION_RESERVADA, lexema);
         } else if (lexema.matches(DOUBLE_NUMERO)) {
             return new Token(TokenType.NUMERO, lexema);
         } else if (lexema.matches(INT_NUMERO)) {
@@ -93,19 +96,14 @@ class Lexer {
             return new Token(TokenType.AGRUPADOR, lexema);
         } else if (lexema.matches(PUNTO_Y_COMA_REGEX)) {
             return new Token(TokenType.PUNTO_Y_COMA, lexema);
-        } else if (lexema.equals("if")) {
-            return new Token(TokenType.IF, lexema);
-        } else if (lexema.equals("else")) {
-            return new Token(TokenType.ELSE, lexema);
+        } else if (PALABRAS_RESERVADAS.contains(lexemaLower)) {
+            return new Token(TokenType.PALABRA_RESERVADA, lexema);       
         } else if (lexema.matches(IDENTIFICADOR)) {
             return new Token(TokenType.IDENTIFICADOR, lexema);
         } else {
             return new Token(TokenType.DESCONOCIDO, lexema);
         }
     }
-
-
-
 
 
     public static List<Token> analizarArchivo(String ruta) throws IOException {
