@@ -4,4 +4,5 @@ boolean flag = true;
 char letra = 'A';/* necesito pizzas 
 para hoy*/
 string texto = "Hola Mundo";
+int z = 100
 //como estan 

@@ -23,7 +23,7 @@ class Token {
     }
 }
 
-// Analizador léxico con buffer
+// Analizador léxico con control de variables
 class Lexer {
     private static final String OPERADORES = "[+\\-*/^]";
     private static final String OPERADOR_ASIGNACION = "=";  
@@ -36,8 +36,8 @@ class Lexer {
     private static final Set<String> TIPOS_DATO = Set.of("int", "double", "boolean", "char", "string");
 
     // Expresiones regulares para valores específicos
-    private static final String INT_NUMERO = "-?(214748364[0-7]|21474836[0-3]\\d|2147483[0-5]\\d{2}|214748[0-2]\\d{3}|21474[0-7]\\d{4}|2147[0-3]\\d{5}|214[0-6]\\d{6}|21[0-3]\\d{7}|2[01]\\d{8}|1\\d{9}|\\d{1,9})(?=[^\\d.]|$)";
-    private static final String DOUBLE_NUMERO = "-?\\d+\\.\\d+(?=[^\\d.]|$)"; 
+    private static final String INT_NUMERO = "-?\\d+";
+    private static final String DOUBLE_NUMERO = "-?\\d+\\.\\d+"; 
     private static final String BOOLEANO = "true|false";
     private static final String CHAR = "'[^']'";  
     private static final String STRING = "\"[^\"]*\""; 
@@ -45,6 +45,9 @@ class Lexer {
 
     // Expresiones regulares para comentarios
     private static final String COMENTARIO_SIMPLE = "//.*";  
+
+    // Lista para almacenar las variables declaradas
+    private static final Set<String> variablesDeclaradas = new HashSet<>();
 
     private static final Pattern PATRON = Pattern.compile(
         COMENTARIO_SIMPLE + "|" + OPERADORES_LOGICOS + "|" + OPERADOR_ASIGNACION + "|" + OPERADORES + "|" + 
@@ -56,6 +59,8 @@ class Lexer {
     public static List<Token> analizar(String input) {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = PATRON.matcher(input);
+        boolean esDeclaracion = false;
+        String ultimoTipoDato = "";
 
         while (matcher.find()) {
             String lexema = matcher.group().trim();
@@ -64,7 +69,27 @@ class Lexer {
                 continue; 
             }
 
-            tokens.add(crearToken(lexema));
+            Token token = crearToken(lexema);
+
+            if (token.tipo == TokenType.TIPO_DATO) {
+                esDeclaracion = true;
+                ultimoTipoDato = token.valor;
+            } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
+                // Almacenar la variable en la lista de declaradas
+                variablesDeclaradas.add(token.valor);
+            } else if (!esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
+                // Verificar si la variable ha sido declarada antes de su uso
+                if (!variablesDeclaradas.contains(token.valor)) {
+                    throw new RuntimeException("Error: La variable '" + token.valor + "' no ha sido declarada antes de su uso.");
+                }
+            }
+
+            // Si encontramos un ";", finaliza la declaración
+            if (token.tipo == TokenType.PUNTO_Y_COMA) {
+                esDeclaracion = false;
+            }
+
+            tokens.add(token);
         }
         return tokens;
     }
@@ -98,6 +123,8 @@ class Lexer {
             return new Token(TokenType.DESCONOCIDO, lexema);
         }
     }
+
+
 
     public static List<Token> analizarArchivo(String ruta) throws IOException {
         File archivo = new File(ruta);
