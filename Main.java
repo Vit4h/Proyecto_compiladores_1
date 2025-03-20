@@ -2,12 +2,8 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonReader;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.StringReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -16,7 +12,6 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            // Iniciar el servidor HTTP en el puerto 8081
             System.out.println("Iniciando servidor HTTP en el puerto 8081...");
             SimpleHttpServer.startServer();
         } catch (IOException e) {
@@ -25,13 +20,12 @@ public class Main {
     }
 }
 
-// Clase para el servidor HTTP
 class SimpleHttpServer {
 
     public static void startServer() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
         server.createContext("/api/analyze", new AnalyzeHandler());
-        server.setExecutor(null); // Usa el executor por defecto
+        server.setExecutor(null);
         server.start();
         System.out.println("Servidor HTTP iniciado en http://localhost:8081");
     }
@@ -39,14 +33,14 @@ class SimpleHttpServer {
     static class AnalyzeHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // Habilitar CORS
+            // Configurar CORS
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
             exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
 
             // Manejar solicitudes OPTIONS (preflight)
             if ("OPTIONS".equals(exchange.getRequestMethod())) {
-                exchange.sendResponseHeaders(204, -1); // Respuesta vacía para preflight
+                exchange.sendResponseHeaders(204, -1);
                 return;
             }
 
@@ -55,21 +49,23 @@ class SimpleHttpServer {
                 try {
                     // Leer el cuerpo de la solicitud
                     String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                    System.out.println("Cuerpo de la solicitud: " + requestBody); // Depuración
-
-                    // Parsear el JSON para extraer el campo "code"
-                    JsonObject json;
-                    try (JsonReader jsonReader = Json.createReader(new StringReader(requestBody))) {
-                        json = jsonReader.readObject();
+                    if (requestBody == null || requestBody.isEmpty()) {
+                        sendErrorResponse(exchange, 400, "El cuerpo de la solicitud no puede estar vacío");
+                        return;
                     }
-                    String code = json.getString("code"); // Extraer el valor de "code"
-                    System.out.println("Código a analizar: " + code); // Depuración
 
-                    // Procesar el código con el Lexer
+                    // Extraer el campo "code" manualmente
+                    String code = extractCodeFromJson(requestBody);
+                    if (code == null) {
+                        sendErrorResponse(exchange, 400, "El campo 'code' es requerido");
+                        return;
+                    }
+
+                    // Analizar el código con el Lexer
                     List<Token> tokens = Lexer.analizarTexto(code);
 
-                    // Convertir los tokens a JSON
-                    String response = "{\"tokens\": " + tokensToJson(tokens) + "}";
+                    // Construir la respuesta manualmente
+                    String response = "{\"status\": \"success\", \"tokens\": " + tokensToJson(tokens) + "}";
 
                     // Enviar la respuesta
                     exchange.sendResponseHeaders(200, response.getBytes().length);
@@ -78,12 +74,8 @@ class SimpleHttpServer {
                     }
                 } catch (Exception e) {
                     // Manejar errores
-                    System.err.println("Error en el backend: " + e.getMessage()); // Depuración
-                    String errorResponse = "{\"error\": \"" + e.getMessage() + "\"}";
-                    exchange.sendResponseHeaders(500, errorResponse.getBytes().length);
-                    try (OutputStream output = exchange.getResponseBody()) {
-                        output.write(errorResponse.getBytes());
-                    }
+                    System.err.println("Error en el backend: " + e.getMessage());
+                    sendErrorResponse(exchange, 500, "Error en el backend: " + e.getMessage());
                 }
             } else {
                 // Método no permitido
@@ -91,13 +83,30 @@ class SimpleHttpServer {
             }
         }
 
-        // Método para convertir tokens a JSON (simplificado)
+        // Método para extraer el campo "code" del JSON manualmente
+        private String extractCodeFromJson(String json) {
+            // Buscar el campo "code" en el JSON
+            int codeIndex = json.indexOf("\"code\":");
+            if (codeIndex == -1) {
+                return null; // No se encontró el campo "code"
+            }
+
+            // Extraer el valor del campo "code"
+            int start = json.indexOf("\"", codeIndex + 7) + 1; // +7 para saltar "\"code\":"
+            int end = json.indexOf("\"", start);
+            return json.substring(start, end);
+        }
+
+        // Método para convertir tokens a JSON manualmente
         private String tokensToJson(List<Token> tokens) {
             StringBuilder json = new StringBuilder("[");
             for (Token token : tokens) {
                 json.append(String.format(
                     "{\"tipo\": \"%s\", \"valor\": \"%s\", \"linea\": %d, \"columna\": %d},",
-                    token.tipo, token.valor, token.linea, token.columna
+                    escapeJson(token.tipo.name()), // Convertir TokenType a String usando name()
+                    escapeJson(token.valor), 
+                    token.linea, 
+                    token.columna
                 ));
             }
             if (tokens.size() > 0) {
@@ -105,6 +114,29 @@ class SimpleHttpServer {
             }
             json.append("]");
             return json.toString();
+        }
+
+        // Método para escapar caracteres especiales en JSON
+        private String escapeJson(String value) {
+            if (value == null) {
+                return "";
+            }
+            return value.replace("\\", "\\\\")
+                       .replace("\"", "\\\"")
+                       .replace("\b", "\\b")
+                       .replace("\f", "\\f")
+                       .replace("\n", "\\n")
+                       .replace("\r", "\\r")
+                       .replace("\t", "\\t");
+        }
+
+        // Método para enviar respuestas de error
+        private void sendErrorResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
+            String errorResponse = String.format("{\"status\": \"error\", \"message\": \"%s\"}", escapeJson(message));
+            exchange.sendResponseHeaders(statusCode, errorResponse.getBytes().length);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(errorResponse.getBytes());
+            }
         }
     }
 }
