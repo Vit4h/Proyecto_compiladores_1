@@ -182,9 +182,16 @@ class Lexer {
         if (FUNCIONES_RESERVADAS.contains(lexema)) return new Token(TokenType.FUNCION_RESERVADA, lexema, linea, columna);
         if (lexema.matches(DOUBLE_NUMERO) || lexema.matches(INT_NUMERO)) return new Token(TokenType.NUMERO, lexema, linea, columna);
         if (lexema.matches(BOOLEANO)) return new Token(TokenType.BOOLEANO, lexema, linea, columna);
+        if (lexema.matches(CHAR)) return new Token(TokenType.CHAR, lexema, linea, columna);
+        if (lexema.matches(STRING)) return new Token(TokenType.LITERAL, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_COMPARACION) || lexema.matches(OPERADORES_ARITMETICOS) || lexema.matches(OPERADOR_ASIGNACION))
+            return new Token(TokenType.OPERADOR, lexema, linea, columna);
+        if (lexema.matches(AGRUPADORES)) return new Token(TokenType.AGRUPADOR, lexema, linea, columna);
+        if (lexema.matches(PUNTO_Y_COMA_REGEX)) return new Token(TokenType.PUNTO_Y_COMA, lexema, linea, columna);
+        if (PALABRAS_RESERVADAS.contains(lexemaLower)) return new Token(TokenType.PALABRA_RESERVADA, lexema, linea, columna);
         if (lexema.matches(IDENTIFICADOR)) return new Token(TokenType.IDENTIFICADOR, lexema, linea, columna);
 
-        errores.add(new LexicalError(linea, columna, "Token desconocido: \"" + lexema + "\"."));
+        errores.add(new LexicalError(linea, columna, "Identificador inválido o token desconocido: \"" + lexema + "\"."));
         return new Token(TokenType.ERROR, lexema, linea, columna);
     }
 }
