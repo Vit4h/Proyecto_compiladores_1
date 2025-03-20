@@ -1,3 +1,6 @@
 if sum > 2 {  // Falta el paréntesis de apertura "("
     EscribirLinea("Error");
 }
+for i = 0; i < 10; i++ {  // Falta el paréntesis de apertura "("
+    EscribirLinea(i);
+}

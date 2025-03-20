@@ -142,10 +142,15 @@ class Lexer {
         Matcher matcher = PATRON.matcher(input);
 
         boolean esDeclaracion = false;
+
         boolean esperandoCondicion = false;
         boolean esperandoBloque = false;
         boolean ifPresente = false;
         boolean elseEsperado = false;
+        boolean forPresente = false;
+        boolean doPresente = false;
+        boolean whileEsperado = false;
+
         Deque<String> pilaLlaves = new ArrayDeque<>(); // Rastrea llaves {}
 
         while (matcher.find()) {
@@ -173,6 +178,8 @@ class Lexer {
                     errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
                 }
             }
+
+
             if (token.tipo == TokenType.PALABRA_RESERVADA) {
                 if (lexema.equals("if")) {
                     ifPresente = true;
@@ -206,14 +213,50 @@ class Lexer {
                     pilaLlaves.pop();
                 }
             }
+            
+            // Manejo de la estructura del FOR
+        if (token.tipo == TokenType.PALABRA_RESERVADA) {
+            if (lexema.equals("for")) {
+                forPresente = true;
+                esperandoCondicion = true;
+            } else if (lexema.equals("do")) {
+                doPresente = true;
+            } else if (lexema.equals("while") && doPresente) {
+                whileEsperado = true;
+            }
+        } else if (lexema.equals("(") && esperandoCondicion) {
+            esperandoCondicion = false;
+            esperandoBloque = true;
+        } else if (lexema.equals(")")) {
+            if (!esperandoBloque) {
+                errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
+            }
+            esperandoBloque = false;
+        } else if (lexema.equals("{")) {
+            if (!forPresente && !doPresente) {
+                errores.add(new LexicalError(linea, columna, "Bloque `{` sin `for` o `do` válido antes."));
+            }
+            pilaLlaves.push("{");
+            forPresente = false;
+            doPresente = false;
+        } else if (lexema.equals("}")) {
+            if (pilaLlaves.isEmpty()) {
+                errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
+            } else {
+                pilaLlaves.pop();
+            }
+        } else if (lexema.equals(";") && whileEsperado) {
+            whileEsperado = false;
         }
+
+    }
           // Verificar si hay bloques `{}` sin cerrar
         if (!pilaLlaves.isEmpty()) {
         errores.add(new LexicalError(linea, 1, "Bloques `{}` sin cerrar."));
         }
 
         return tokens;
-    }
+}
 
     private static Token crearToken(String lexema, int linea, int columna) {
         String lexemaLower = lexema.toLowerCase();
