@@ -1,1 +1,1 @@
-sum = 1
+ if  (int suma = 1) int cuatro = 4

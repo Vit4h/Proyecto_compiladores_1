@@ -64,16 +64,25 @@ class SimpleHttpServer {
                     // Analizar el código con el Lexer
                     List<Token> tokens = Lexer.analizarTexto(code);
 
-                    // Construir la respuesta manualmente
-                    String response = "{\"status\": \"success\", \"tokens\": " + tokensToJson(tokens) + "}";
+                    // Verificar si hay errores
+                    if (tokens == null) {
+                        // Enviar errores al frontend
+                        String errorResponse = "{\"status\": \"error\", \"errores\": " + erroresToJson(Lexer.getErrores()) + "}";
+                        exchange.sendResponseHeaders(400, errorResponse.getBytes().length);
+                        try (OutputStream output = exchange.getResponseBody()) {
+                            output.write(errorResponse.getBytes());
+                        }
+                        return; // No continuar si hay errores
+                    }
 
-                    // Enviar la respuesta
+                    // Si no hay errores, generar la respuesta con los tokens
+                    String response = "{\"status\": \"success\", \"tokens\": " + tokensToJson(tokens) + "}";
                     exchange.sendResponseHeaders(200, response.getBytes().length);
                     try (OutputStream output = exchange.getResponseBody()) {
                         output.write(response.getBytes());
                     }
                 } catch (Exception e) {
-                    // Manejar errores
+                    // Manejar otros errores
                     System.err.println("Error en el backend: " + e.getMessage());
                     sendErrorResponse(exchange, 500, "Error en el backend: " + e.getMessage());
                 }
@@ -110,6 +119,24 @@ class SimpleHttpServer {
                 ));
             }
             if (tokens.size() > 0) {
+                json.deleteCharAt(json.length() - 1); // Eliminar la última coma
+            }
+            json.append("]");
+            return json.toString();
+        }
+
+        // Método para convertir errores a JSON manualmente
+        private String erroresToJson(List<LexicalError> errores) {
+            StringBuilder json = new StringBuilder("[");
+            for (LexicalError error : errores) {
+                json.append(String.format(
+                    "{\"linea\": %d, \"columna\": %d, \"mensaje\": \"%s\"},",
+                    error.linea, 
+                    error.columna, 
+                    escapeJson(error.mensaje)
+                ));
+            }
+            if (errores.size() > 0) {
                 json.deleteCharAt(json.length() - 1); // Eliminar la última coma
             }
             json.append("]");
