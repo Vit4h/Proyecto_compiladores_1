@@ -1,47 +1,50 @@
+import java.io.*;
 import java.util.*;
 import java.util.regex.*;
-import java.io.*;
 
 enum TokenType {
     OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO, AGRUPADOR, NUMERO, IDENTIFICADOR, 
     PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, FUNCION_RESERVADA, DESCONOCIDO
 }
 
+// Ahora el Token almacena línea y columna 📍
 class Token {
     TokenType tipo;
     String valor;
+    int linea;
+    int columna;
 
-    public Token(TokenType tipo, String valor) {
+    public Token(TokenType tipo, String valor, int linea, int columna) {
         this.tipo = tipo;
         this.valor = valor;
+        this.linea = linea;
+        this.columna = columna;
     }
 
     @Override
     public String toString() {
-        return "Token{tipo=" + tipo + ", valor='" + valor + "'}";
+        return String.format("%-15s %-20s %-5d %-5d", valor, tipo, linea, columna);
     }
 }
 
 class Lexer {
-    // Palabras clave (insensible a mayúsculas)
     private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else", "for", "while", "do");
     private static final Set<String> TIPOS_DATO = Set.of("int", "double", "boolean", "char", "string");
     private static final Set<String> FUNCIONES_RESERVADAS = Set.of("EscribirLinea", "Escribir", "Longitud", "aCadena");
 
-    // Expresiones regulares
     private static final String OPERADORES_COMPARACION = "(==|>=|<=|!=|>|<)";
     private static final String OPERADORES_LOGICOS = "(\\|\\||&&|!)";
-    private static final String OPERADORES_ARITMETICOS =  "(\\+\\+|--|\\+|\\-|\\*|\\/|\\^|#)";
+    private static final String OPERADORES_ARITMETICOS = "(\\+\\+|--|\\+=|-=|\\*=|/=|\\+|-|\\*|/|\\^|#)";
     private static final String OPERADOR_ASIGNACION = "=";
     private static final String AGRUPADORES = "[(){}]";
     private static final String PUNTO_Y_COMA_REGEX = ";";
     private static final String ESPACIO = "\\s+";
 
     private static final String INT_NUMERO = "-?\\d+";
-    private static final String DOUBLE_NUMERO = "-?\\d+\\.\\d+"; 
+    private static final String DOUBLE_NUMERO = "-?\\d+(\\.\\d+)?";
     private static final String BOOLEANO = "true|false";
-    private static final String CHAR = "'[^']'";
-    private static final String STRING = "\"[^\"]*\"";
+    private static final String CHAR = "'([^'\\\\]|\\\\.)'";
+    private static final String STRING = "\"([^\"\\\\]|\\\\.)*\"";
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
 
     private static final Pattern PATRON = Pattern.compile(
@@ -51,61 +54,6 @@ class Lexer {
         Pattern.CASE_INSENSITIVE
     );
 
-    public static List<Token> analizar(String input) {
-        List<Token> tokens = new ArrayList<>();
-        Matcher matcher = PATRON.matcher(input);
-
-        while (matcher.find()) {
-            String lexema = matcher.group().trim();
-
-            if (lexema.isEmpty() || lexema.matches(ESPACIO)) {
-                continue;
-            }
-
-            tokens.add(crearToken(lexema));
-        }
-        return tokens;
-    }
-
-    private static Token crearToken(String lexema) {
-        String lexemaLower = lexema.toLowerCase();
-
-        if (TIPOS_DATO.contains(lexemaLower)) {
-            return new Token(TokenType.TIPO_DATO, lexema);
-        } else if (FUNCIONES_RESERVADAS.contains(lexema)) {
-            return new Token(TokenType.FUNCION_RESERVADA, lexema);
-        } else if (lexema.matches(DOUBLE_NUMERO)) {
-            return new Token(TokenType.NUMERO, lexema);
-        } else if (lexema.matches(INT_NUMERO)) {
-            return new Token(TokenType.NUMERO, lexema);
-        } else if (lexema.matches(BOOLEANO)) {
-            return new Token(TokenType.BOOLEANO, lexema);
-        } else if (lexema.matches(CHAR)) {
-            return new Token(TokenType.CHAR, lexema);
-        } else if (lexema.matches(STRING)) {
-            return new Token(TokenType.LITERAL, lexema);
-        } else if (lexema.matches(OPERADORES_COMPARACION)) {
-            return new Token(TokenType.OPERADOR_COMPARACION, lexema);
-        } else if (lexema.matches(OPERADORES_LOGICOS)) {
-            return new Token(TokenType.OPERADOR_LOGICO, lexema);
-        } else if (lexema.matches(OPERADOR_ASIGNACION)) { 
-            return new Token(TokenType.OPERADOR, lexema);
-        } else if (lexema.matches(OPERADORES_ARITMETICOS)) {
-            return new Token(TokenType.OPERADOR, lexema);
-        } else if (lexema.matches(AGRUPADORES)) {
-            return new Token(TokenType.AGRUPADOR, lexema);
-        } else if (lexema.matches(PUNTO_Y_COMA_REGEX)) {
-            return new Token(TokenType.PUNTO_Y_COMA, lexema);
-        } else if (PALABRAS_RESERVADAS.contains(lexemaLower)) {
-            return new Token(TokenType.PALABRA_RESERVADA, lexema);       
-        } else if (lexema.matches(IDENTIFICADOR)) {
-            return new Token(TokenType.IDENTIFICADOR, lexema);
-        } else {
-            return new Token(TokenType.DESCONOCIDO, lexema);
-        }
-    }
-
-
     public static List<Token> analizarArchivo(String ruta) throws IOException {
         File archivo = new File(ruta);
         if (!archivo.exists()) {
@@ -114,41 +62,77 @@ class Lexer {
 
         List<Token> tokens = new ArrayList<>();
         boolean enComentarioMultilinea = false;
+        int numeroLinea = 0;
 
         try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
-            String linea;
-            while ((linea = br.readLine()) != null) {
-                linea = linea.trim();
+            String lineaTexto;
+            while ((lineaTexto = br.readLine()) != null) {
+                numeroLinea++;
+                lineaTexto = lineaTexto.trim();
 
-                // Manejo de comentarios de múltiples líneas
+                // Manejo de comentarios
                 if (enComentarioMultilinea) {
-                    if (linea.contains("*/")) {
+                    if (lineaTexto.contains("*/")) {
                         enComentarioMultilinea = false;
-                        linea = linea.substring(linea.indexOf("*/") + 2).trim();
+                        lineaTexto = lineaTexto.substring(lineaTexto.indexOf("*/") + 2).trim();
                     } else {
                         continue;
                     }
                 }
 
-                if (linea.contains("/*")) {
-                    int inicioComentario = linea.indexOf("/*");
-                    if (linea.contains("*/")) { 
-                        linea = linea.substring(0, inicioComentario).trim();
+                if (lineaTexto.contains("/*")) {
+                    int inicioComentario = lineaTexto.indexOf("/*");
+                    if (lineaTexto.contains("*/")) { 
+                        lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
                     } else {
                         enComentarioMultilinea = true;
-                        linea = linea.substring(0, inicioComentario).trim();
+                        lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
                     }
                 }
 
-                if (linea.contains("//")) {
-                    linea = linea.substring(0, linea.indexOf("//")).trim();
+                if (lineaTexto.contains("//")) {
+                    lineaTexto = lineaTexto.substring(0, lineaTexto.indexOf("//")).trim();
                 }
 
-                if (!linea.isEmpty()) {
-                    tokens.addAll(analizar(linea));
+                if (!lineaTexto.isEmpty()) {
+                    tokens.addAll(analizar(lineaTexto, numeroLinea));
                 }
             }
         }
         return tokens;
+    }
+
+    private static List<Token> analizar(String input, int linea) {
+        List<Token> tokens = new ArrayList<>();
+        Matcher matcher = PATRON.matcher(input);
+        
+        while (matcher.find()) {
+            String lexema = matcher.group().trim();
+            if (lexema.isEmpty() || lexema.matches(ESPACIO)) continue;
+            
+            int columna = matcher.start() + 1;  // Calcula la posición en la línea
+            tokens.add(crearToken(lexema, linea, columna));
+        }
+        return tokens;
+    }
+
+    private static Token crearToken(String lexema, int linea, int columna) {
+        String lexemaLower = lexema.toLowerCase();
+
+        if (TIPOS_DATO.contains(lexemaLower)) return new Token(TokenType.TIPO_DATO, lexema, linea, columna);
+        if (FUNCIONES_RESERVADAS.contains(lexema)) return new Token(TokenType.FUNCION_RESERVADA, lexema, linea, columna);
+        if (lexema.matches(DOUBLE_NUMERO) || lexema.matches(INT_NUMERO)) return new Token(TokenType.NUMERO, lexema, linea, columna);
+        if (lexema.matches(BOOLEANO)) return new Token(TokenType.BOOLEANO, lexema, linea, columna);
+        if (lexema.matches(CHAR)) return new Token(TokenType.CHAR, lexema, linea, columna);
+        if (lexema.matches(STRING)) return new Token(TokenType.LITERAL, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_COMPARACION)) return new Token(TokenType.OPERADOR_COMPARACION, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_LOGICOS)) return new Token(TokenType.OPERADOR_LOGICO, lexema, linea, columna);
+        if (lexema.matches(OPERADOR_ASIGNACION) || lexema.matches(OPERADORES_ARITMETICOS)) return new Token(TokenType.OPERADOR, lexema, linea, columna);
+        if (lexema.matches(AGRUPADORES)) return new Token(TokenType.AGRUPADOR, lexema, linea, columna);
+        if (lexema.matches(PUNTO_Y_COMA_REGEX)) return new Token(TokenType.PUNTO_Y_COMA, lexema, linea, columna);
+        if (PALABRAS_RESERVADAS.contains(lexemaLower)) return new Token(TokenType.PALABRA_RESERVADA, lexema, linea, columna);
+        if (lexema.matches(IDENTIFICADOR)) return new Token(TokenType.IDENTIFICADOR, lexema, linea, columna);
+
+        return new Token(TokenType.DESCONOCIDO, lexema, linea, columna);
     }
 }
