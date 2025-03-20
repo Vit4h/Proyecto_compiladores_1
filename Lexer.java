@@ -63,7 +63,7 @@ class Lexer {
     private static final String BOOLEANO = "true|false";
     private static final String CHAR = "'([^'\\\\]|\\\\.)'";
     private static final String STRING = "\"([^\"\\\\]|\\\\.)*\"";
-    
+
     // Expresión regular mejorada para identificadores
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
 
@@ -142,7 +142,6 @@ class Lexer {
         Matcher matcher = PATRON.matcher(input);
 
         boolean esDeclaracion = false;
-        String tipoDatoActual = null;
 
         while (matcher.find()) {
             String lexema = matcher.group().trim();
@@ -153,15 +152,13 @@ class Lexer {
             Token token = crearToken(lexema, linea, columna);
             tokens.add(token);
 
-            // Identificar si es una declaración de variable
+            // Detectar declaraciones de variables correctamente
             if (token.tipo == TokenType.TIPO_DATO) {
                 esDeclaracion = true;
-                tipoDatoActual = token.valor;
             } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
                 variablesDeclaradas.add(token.valor);
             } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
                 esDeclaracion = false;
-                tipoDatoActual = null;
             }
 
             // Verificar si se usa una variable sin declararse
