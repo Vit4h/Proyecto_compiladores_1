@@ -142,6 +142,11 @@ class Lexer {
         Matcher matcher = PATRON.matcher(input);
 
         boolean esDeclaracion = false;
+        boolean esperandoCondicion = false;
+        boolean esperandoBloque = false;
+        boolean ifPresente = false;
+        boolean elseEsperado = false;
+        Deque<String> pilaLlaves = new ArrayDeque<>(); // Rastrea llaves {}
 
         while (matcher.find()) {
             String lexema = matcher.group().trim();
@@ -160,6 +165,7 @@ class Lexer {
             } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
                 esDeclaracion = false;
             }
+            
 
             // Verificar si se usa una variable sin declararse
             if (!esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
@@ -167,6 +173,43 @@ class Lexer {
                     errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
                 }
             }
+            if (token.tipo == TokenType.PALABRA_RESERVADA) {
+                if (lexema.equals("if")) {
+                    ifPresente = true;
+                    esperandoCondicion = true;
+                } else if (lexema.equals("else")) {
+                    if (!ifPresente) {
+                        errores.add(new LexicalError(linea, columna, "`else` sin `if` previo."));
+                    } else {
+                        elseEsperado = true;
+                    }
+                }
+            } else if (lexema.equals("(") && esperandoCondicion) {
+                esperandoCondicion = false;
+                esperandoBloque = true;
+            } else if (lexema.equals(")")) {
+                if (!esperandoBloque) {
+                    errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
+                }
+                esperandoBloque = false;
+            } else if (lexema.equals("{")) {
+                if (!ifPresente && !elseEsperado) {
+                    errores.add(new LexicalError(linea, columna, "Bloque `{` sin `if` o `else` válido antes."));
+                }
+                pilaLlaves.push("{");
+                ifPresente = false;
+                elseEsperado = false;
+            } else if (lexema.equals("}")) {
+                if (pilaLlaves.isEmpty()) {
+                    errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
+                } else {
+                    pilaLlaves.pop();
+                }
+            }
+        }
+          // Verificar si hay bloques `{}` sin cerrar
+        if (!pilaLlaves.isEmpty()) {
+        errores.add(new LexicalError(linea, 1, "Bloques `{}` sin cerrar."));
         }
 
         return tokens;

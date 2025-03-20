@@ -1,1 +1,3 @@
-int sum = 1
+if sum > 2 {  // Falta el paréntesis de apertura "("
+    EscribirLinea("Error");
+}
