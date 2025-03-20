@@ -1,3 +1,1 @@
-FOR(int i = 0; i < 10; i++) { sum += i; }
-
-do { sum -= 1; } while(sum > 0);
+sum = 1
