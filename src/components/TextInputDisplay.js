@@ -1,14 +1,13 @@
 import React, { useState } from "react";
 
 export default function TextInputDisplay() {
-  const [text, setText] = useState(""); // Estado para el texto ingresado
-  const [fileContent, setFileContent] = useState(""); // Estado para el contenido del archivo
-  const [file, setFile] = useState(null); // Estado para el archivo seleccionado
-  const [output, setOutput] = useState([]); // Estado para la salida (tokens generados)
-  const [error, setError] = useState(""); // Estado para manejar errores
-  const [loading, setLoading] = useState(false); // Estado para manejar la carga
+  const [text, setText] = useState("");
+  const [fileContent, setFileContent] = useState("");
+  const [file, setFile] = useState(null);
+  const [output, setOutput] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Manejar cambios en el campo de texto
   const handleTextChange = (e) => {
     setText(e.target.value);
     if (e.target.value) {
@@ -17,7 +16,6 @@ export default function TextInputDisplay() {
     }
   };
 
-  // Manejar cambios en la selección de archivos
   const handleFileChange = async (event) => {
     if (event.target.files.length > 0) {
       const selectedFile = event.target.files[0];
@@ -32,7 +30,31 @@ export default function TextInputDisplay() {
     }
   };
 
-  // Enviar el contenido al backend para análisis
+  const formatToken = (token) => {
+    // Mapeo de tipos a abreviaturas más cortas
+    const typeMap = {
+      "NUMERO": "num",
+      "IDENTIFICADOR": "id",
+      "OPERADOR": "op",
+      "OPERADOR_COMPARACION": "op_comp",
+      "OPERADOR_LOGICO": "op_log",
+      "AGRUPADOR": "agrup",
+      "PUNTO_Y_COMA": "ptcoma",
+      "TIPO_DATO": "tipo",
+      "PALABRA_RESERVADA": "palres",
+      "FUNCION_RESERVADA": "func",
+      "BOOLEANO": "bool",
+      "CHAR": "char",
+      "LITERAL": "lit",
+      "ERROR": "error"
+    };
+
+    const tipo = token.tipo || 'error';
+    const valor = token.valor || '?';
+    
+    return `<${typeMap[tipo] || tipo.toLowerCase()},${valor}>`;
+  };
+
   const handleAnalyze = async () => {
     const contentToAnalyze = fileContent || text;
 
@@ -43,31 +65,39 @@ export default function TextInputDisplay() {
 
     setLoading(true);
     setError("");
+    setOutput([]);
 
     try {
-      console.log("Enviando código al backend:", contentToAnalyze); // Depuración
       const response = await fetch("http://localhost:8081/api/analyze", {
-          method: "POST",
-          headers: {
-              "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code: contentToAnalyze }), // Enviar el contenido como JSON
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: contentToAnalyze }),
       });
-  
-      if (!response.ok) {
-          throw new Error("Error al analizar el código");
-      }
-  
+
       const data = await response.json();
-      console.log("Respuesta del backend:", data); // Depuración
+      
+      if (!response.ok) {
+        if (data.errores && data.errores.length > 0) {
+          const erroresStr = data.errores.map(e => 
+            `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
+          ).join('\n');
+          setError(erroresStr);
+        } else {
+          setError(data.message || "Error al analizar el código");
+        }
+        setOutput([]);
+        return;
+      }
+
       setOutput(data.tokens || []);
-  } catch (err) {
-      console.error("Error en la solicitud:", err); // Depuración
-      setError(`Error: ${err.message}`);
+    } catch (err) {
+      setError(`Error de conexión: ${err.message}`);
       setOutput([]);
-  } finally {
+    } finally {
       setLoading(false);
-  }
+    }
   };
 
   return (
@@ -135,10 +165,18 @@ export default function TextInputDisplay() {
         </p>
       </div>
 
-      {/* Mostrar errores */}
       {error && (
-        <div style={{ color: "red", marginTop: "10px" }}>
-          <strong>Error:</strong> {error}
+        <div style={{ 
+          color: "red", 
+          marginTop: "10px",
+          backgroundColor: "#ffeeee",
+          padding: "10px",
+          border: "1px solid #ffcccc",
+          borderRadius: "4px",
+          whiteSpace: "pre-wrap"
+        }}>
+          <strong>Errores encontrados:</strong>
+          <div style={{ marginTop: "5px" }}>{error}</div>
         </div>
       )}
 
@@ -164,7 +202,6 @@ export default function TextInputDisplay() {
           padding: "0 50px",
         }}
       >
-        {/* Sección de Entrada */}
         <div
           style={{
             border: "1px solid #ccc",
@@ -177,7 +214,6 @@ export default function TextInputDisplay() {
           <pre>{fileContent || text}</pre>
         </div>
 
-        {/* Sección de Salida */}
         <div
           style={{
             border: "1px solid #ccc",
@@ -188,26 +224,43 @@ export default function TextInputDisplay() {
           }}
         >
           {output.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo</th>
-                  <th style={{ border: "1px solid #ccc", padding: "8px" }}>Valor</th>
-                  <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
-                  <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
-                </tr>
-              </thead>
-              <tbody>
+            <div>
+              <div style={{ 
+                fontFamily: "monospace",
+                backgroundColor: "#fff",
+                padding: "10px",
+                marginBottom: "20px",
+                border: "1px solid #ddd",
+                borderRadius: "4px"
+              }}>
                 {output.map((token, index) => (
-                  <tr key={index}>
-                    <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.tipo}</td>
-                    <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.valor}</td>
-                    <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.linea}</td>
-                    <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.columna}</td>
-                  </tr>
+                  <span key={index}>
+                    {formatToken(token)}{' '}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Valor</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {output.map((token, index) => (
+                    <tr key={index}>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.tipo}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.valor}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.linea}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.columna}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p>No hay tokens generados.</p>
           )}

@@ -7,27 +7,25 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class Main {
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-    public static void main(String[] args) {
-        try {
-            System.out.println("Iniciando servidor HTTP en el puerto 8081...");
-            SimpleHttpServer.startServer();
-        } catch (IOException e) {
-            System.err.println("Error al iniciar el servidor HTTP: " + e.getMessage());
-        }
+    public static void main(String[] args) throws IOException {
+        int port = 8081;
+        System.out.println("Iniciando servidor HTTP en el puerto " + port + "...");
+        startServer(port);
     }
-}
 
-class SimpleHttpServer {
-
-    public static void startServer() throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
+    public static void startServer(int port) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api/analyze", new AnalyzeHandler());
         server.setExecutor(null);
         server.start();
-        System.out.println("Servidor HTTP iniciado en http://localhost:8081");
+        System.out.println("Servidor HTTP iniciado en http://localhost:" + port);
     }
 
     static class AnalyzeHandler implements HttpHandler {
@@ -44,126 +42,88 @@ class SimpleHttpServer {
                 return;
             }
 
-            // Manejar solicitudes POST
-            if ("POST".equals(exchange.getRequestMethod())) {
-                try {
-                    // Leer el cuerpo de la solicitud
-                    String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                    if (requestBody == null || requestBody.isEmpty()) {
-                        sendErrorResponse(exchange, 400, "El cuerpo de la solicitud no puede estar vacío");
-                        return;
-                    }
+            // Solo manejar POST
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendErrorResponse(exchange, 405, "Método no permitido");
+                return;
+            }
 
-                    // Extraer el campo "code" manualmente
-                    String code = extractCodeFromJson(requestBody);
-                    if (code == null) {
-                        sendErrorResponse(exchange, 400, "El campo 'code' es requerido");
-                        return;
-                    }
-
-                    // Analizar el código con el Lexer
-                    List<Token> tokens = Lexer.analizarTexto(code);
-
-                    // Verificar si hay errores
-                    if (tokens == null) {
-                        // Enviar errores al frontend
-                        String errorResponse = "{\"status\": \"error\", \"errores\": " + erroresToJson(Lexer.getErrores()) + "}";
-                        exchange.sendResponseHeaders(400, errorResponse.getBytes().length);
-                        try (OutputStream output = exchange.getResponseBody()) {
-                            output.write(errorResponse.getBytes());
-                        }
-                        return; // No continuar si hay errores
-                    }
-
-                    // Si no hay errores, generar la respuesta con los tokens
-                    String response = "{\"status\": \"success\", \"tokens\": " + tokensToJson(tokens) + "}";
-                    exchange.sendResponseHeaders(200, response.getBytes().length);
-                    try (OutputStream output = exchange.getResponseBody()) {
-                        output.write(response.getBytes());
-                    }
-                } catch (Exception e) {
-                    // Manejar otros errores
-                    System.err.println("Error en el backend: " + e.getMessage());
-                    sendErrorResponse(exchange, 500, "Error en el backend: " + e.getMessage());
+            try {
+                // Leer el cuerpo de la solicitud
+                String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                if (requestBody == null || requestBody.isEmpty()) {
+                    sendErrorResponse(exchange, 400, "El cuerpo de la solicitud no puede estar vacío");
+                    return;
                 }
-            } else {
-                // Método no permitido
-                exchange.sendResponseHeaders(405, -1); // 405 Method Not Allowed
+
+                // Extraer el código del JSON
+                String code = extractCodeFromJson(requestBody);
+                if (code == null) {
+                    sendErrorResponse(exchange, 400, "El campo 'code' es requerido");
+                    return;
+                }
+
+                // Analizar el código
+                Map<String, Object> resultado = Lexer.analizarCodigo(code);
+
+                // Preparar respuesta
+                String response;
+                int statusCode;
+
+                if (resultado.containsKey("errores")) {
+                    statusCode = 400;
+                    response = gson.toJson(Map.of(
+                        "status", "error",
+                        "errores", resultado.get("errores"),
+                        "tokensParciales", resultado.get("tokensParciales")
+                    ));
+                } else {
+                    statusCode = 200;
+                    response = gson.toJson(Map.of(
+                        "status", "success",
+                        "tokens", resultado.get("tokens")
+                    ));
+                }
+
+                // Enviar respuesta
+                exchange.sendResponseHeaders(statusCode, response.getBytes().length);
+                try (OutputStream output = exchange.getResponseBody()) {
+                    output.write(response.getBytes());
+                }
+            } catch (Exception e) {
+                System.err.println("Error en el backend: " + e.getMessage());
+                sendErrorResponse(exchange, 500, "Error interno del servidor: " + e.getMessage());
             }
         }
 
-        // Método para extraer el campo "code" del JSON manualmente
         private String extractCodeFromJson(String json) {
-            // Buscar el campo "code" en el JSON
-            int codeIndex = json.indexOf("\"code\":");
-            if (codeIndex == -1) {
-                return null; // No se encontró el campo "code"
+            try {
+                // Usamos Gson para parsear el JSON de manera segura
+                Map<?, ?> map = gson.fromJson(json, Map.class);
+                return (String) map.get("code");
+            } catch (Exception e) {
+                return null;
             }
-
-            // Extraer el valor del campo "code"
-            int start = json.indexOf("\"", codeIndex + 7) + 1; // +7 para saltar "\"code\":"
-            int end = json.indexOf("\"", start);
-            return json.substring(start, end);
         }
 
-        // Método para convertir tokens a JSON manualmente
-        private String tokensToJson(List<Token> tokens) {
-            StringBuilder json = new StringBuilder("[");
-            for (Token token : tokens) {
-                json.append(String.format(
-                    "{\"tipo\": \"%s\", \"valor\": \"%s\", \"linea\": %d, \"columna\": %d},",
-                    escapeJson(token.tipo.name()), // Convertir TokenType a String usando name()
-                    escapeJson(token.valor), 
-                    token.linea, 
-                    token.columna
-                ));
-            }
-            if (tokens.size() > 0) {
-                json.deleteCharAt(json.length() - 1); // Eliminar la última coma
-            }
-            json.append("]");
-            return json.toString();
-        }
-
-        // Método para convertir errores a JSON manualmente
-        private String erroresToJson(List<LexicalError> errores) {
-            StringBuilder json = new StringBuilder("[");
-            for (LexicalError error : errores) {
-                json.append(String.format(
-                    "{\"linea\": %d, \"columna\": %d, \"mensaje\": \"%s\"},",
-                    error.linea, 
-                    error.columna, 
-                    escapeJson(error.mensaje)
-                ));
-            }
-            if (errores.size() > 0) {
-                json.deleteCharAt(json.length() - 1); // Eliminar la última coma
-            }
-            json.append("]");
-            return json.toString();
-        }
-
-        // Método para escapar caracteres especiales en JSON
-        private String escapeJson(String value) {
-            if (value == null) {
-                return "";
-            }
-            return value.replace("\\", "\\\\")
-                       .replace("\"", "\\\"")
-                       .replace("\b", "\\b")
-                       .replace("\f", "\\f")
-                       .replace("\n", "\\n")
-                       .replace("\r", "\\r")
-                       .replace("\t", "\\t");
-        }
-
-        // Método para enviar respuestas de error
         private void sendErrorResponse(HttpExchange exchange, int statusCode, String message) throws IOException {
-            String errorResponse = String.format("{\"status\": \"error\", \"message\": \"%s\"}", escapeJson(message));
-            exchange.sendResponseHeaders(statusCode, errorResponse.getBytes().length);
+            String response = gson.toJson(Map.of(
+                "status", "error",
+                "message", message
+            ));
+            exchange.sendResponseHeaders(statusCode, response.getBytes().length);
             try (OutputStream output = exchange.getResponseBody()) {
-                output.write(errorResponse.getBytes());
+                output.write(response.getBytes());
             }
         }
+    }
+
+    // Métodos para convertir a JSON (usados por el Lexer)
+    public static String tokensToJson(List<Lexer.Token> tokens) {
+        return gson.toJson(tokens);
+    }
+
+    public static String erroresToJson(List<Lexer.LexicalError> errores) {
+        return gson.toJson(errores);
     }
 }
