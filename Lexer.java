@@ -63,13 +63,11 @@ class Lexer {
     private static final String BOOLEANO = "true|false";
     private static final String CHAR = "'([^'\\\\]|\\\\.)'";
     private static final String STRING = "\"([^\"\\\\]|\\\\.)*\"";
-
-    // Expresión regular mejorada para identificadores
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
 
     private static final Pattern PATRON = Pattern.compile(
         OPERADORES_COMPARACION + "|" + OPERADORES_LOGICOS + "|" + OPERADORES_ARITMETICOS + "|" +
-        OPERADOR_ASIGNACION + "|" + AGRUPADORES + "|" + DOUBLE_NUMERO + "|" + INT_NUMERO + "|" + 
+        OPERADOR_ASIGNACION + "|" + AGRUPADORES + "|" + DOUBLE_NUMERO + "|" + INT_NUMERO + "|" +
         BOOLEANO + "|" + CHAR + "|" + STRING + "|" + PUNTO_Y_COMA_REGEX + "|" + IDENTIFICADOR + "|" + ESPACIO,
         Pattern.CASE_INSENSITIVE
     );
@@ -79,16 +77,17 @@ class Lexer {
 
     public static List<Token> analizarArchivo(String ruta) throws IOException {
         File archivo = new File(ruta);
-        if (!archivo.exists()) {
-            throw new FileNotFoundException("El archivo no existe: " + ruta);
-        }
+        if (!archivo.exists()) throw new FileNotFoundException("El archivo no existe: " + ruta);
 
         List<Token> tokens = new ArrayList<>();
         errores.clear();
         variablesDeclaradas.clear();
 
-        boolean enComentarioMultilinea = false;
+        Deque<String> pilaLlaves = new ArrayDeque<>();
+        Deque<String> pilaParentesis = new ArrayDeque<>();
+
         int numeroLinea = 0;
+        boolean enComentarioMultilinea = false;
 
         try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
             String lineaTexto;
@@ -108,8 +107,8 @@ class Lexer {
 
                 if (lineaTexto.contains("/*")) {
                     int inicioComentario = lineaTexto.indexOf("/*");
-                    if (lineaTexto.contains("*/")) { 
-                        lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
+                    if (lineaTexto.contains("*/")) {
+                        lineaTexto = lineaTexto.replaceAll("/\\*.*?\\*/", "").trim();
                     } else {
                         enComentarioMultilinea = true;
                         lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
@@ -121,12 +120,18 @@ class Lexer {
                 }
 
                 if (!lineaTexto.isEmpty()) {
-                    tokens.addAll(analizar(lineaTexto, numeroLinea));
+                    tokens.addAll(analizar(lineaTexto, numeroLinea, pilaLlaves, pilaParentesis));
                 }
             }
         }
 
-        // Imprimir errores al final del análisis
+        if (!pilaLlaves.isEmpty()) {
+            errores.add(new LexicalError(-1, 1, "Bloques `{}` sin cerrar."));
+        }
+        if (!pilaParentesis.isEmpty()) {
+            errores.add(new LexicalError(-1, 1, "Paréntesis `(` sin cerrar."));
+        }
+
         if (!errores.isEmpty()) {
             System.out.println("\nErrores Encontrados:");
             for (LexicalError error : errores) {
@@ -137,21 +142,10 @@ class Lexer {
         return tokens;
     }
 
-    private static List<Token> analizar(String input, int linea) {
+    private static List<Token> analizar(String input, int linea, Deque<String> pilaLlaves, Deque<String> pilaParentesis) {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = PATRON.matcher(input);
-
         boolean esDeclaracion = false;
-
-        boolean esperandoCondicion = false;
-        boolean esperandoBloque = false;
-        boolean ifPresente = false;
-        boolean elseEsperado = false;
-        boolean forPresente = false;
-        boolean doPresente = false;
-        boolean whileEsperado = false;
-
-        Deque<String> pilaLlaves = new ArrayDeque<>(); // Rastrea llaves {}
 
         while (matcher.find()) {
             String lexema = matcher.group().trim();
@@ -162,7 +156,6 @@ class Lexer {
             Token token = crearToken(lexema, linea, columna);
             tokens.add(token);
 
-            // Detectar declaraciones de variables correctamente
             if (token.tipo == TokenType.TIPO_DATO) {
                 esDeclaracion = true;
             } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
@@ -170,42 +163,27 @@ class Lexer {
             } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
                 esDeclaracion = false;
             }
-            
 
-            // Verificar si se usa una variable sin declararse
             if (!esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
                 if (!variablesDeclaradas.contains(token.valor)) {
                     errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
                 }
             }
 
-
-            if (token.tipo == TokenType.PALABRA_RESERVADA) {
-                if (lexema.equals("if")) {
-                    ifPresente = true;
-                    esperandoCondicion = true;
-                } else if (lexema.equals("else")) {
-                    if (!ifPresente) {
-                        errores.add(new LexicalError(linea, columna, "`else` sin `if` previo."));
-                    } else {
-                        elseEsperado = true;
-                    }
-                }
-            } else if (lexema.equals("(") && esperandoCondicion) {
-                esperandoCondicion = false;
-                esperandoBloque = true;
+            // PILA DE PARENTESIS
+            if (lexema.equals("(")) {
+                pilaParentesis.push("(");
             } else if (lexema.equals(")")) {
-                if (!esperandoBloque) {
+                if (pilaParentesis.isEmpty()) {
                     errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
+                } else {
+                    pilaParentesis.pop();
                 }
-                esperandoBloque = false;
-            } else if (lexema.equals("{")) {
-                if (!ifPresente && !elseEsperado) {
-                    errores.add(new LexicalError(linea, columna, "Bloque `{` sin `if` o `else` válido antes."));
-                }
+            }
+
+            // PILA DE LLAVES
+            if (lexema.equals("{")) {
                 pilaLlaves.push("{");
-                ifPresente = false;
-                elseEsperado = false;
             } else if (lexema.equals("}")) {
                 if (pilaLlaves.isEmpty()) {
                     errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
@@ -213,50 +191,10 @@ class Lexer {
                     pilaLlaves.pop();
                 }
             }
-            
-            // Manejo de la estructura del FOR
-        if (token.tipo == TokenType.PALABRA_RESERVADA) {
-            if (lexema.equals("for")) {
-                forPresente = true;
-                esperandoCondicion = true;
-            } else if (lexema.equals("do")) {
-                doPresente = true;
-            } else if (lexema.equals("while") && doPresente) {
-                whileEsperado = true;
-            }
-        } else if (lexema.equals("(") && esperandoCondicion) {
-            esperandoCondicion = false;
-            esperandoBloque = true;
-        } else if (lexema.equals(")")) {
-            if (!esperandoBloque) {
-                errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
-            }
-            esperandoBloque = false;
-        } else if (lexema.equals("{")) {
-            if (!forPresente && !doPresente) {
-                errores.add(new LexicalError(linea, columna, "Bloque `{` sin `for` o `do` válido antes."));
-            }
-            pilaLlaves.push("{");
-            forPresente = false;
-            doPresente = false;
-        } else if (lexema.equals("}")) {
-            if (pilaLlaves.isEmpty()) {
-                errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
-            } else {
-                pilaLlaves.pop();
-            }
-        } else if (lexema.equals(";") && whileEsperado) {
-            whileEsperado = false;
-        }
-
-    }
-          // Verificar si hay bloques `{}` sin cerrar
-        if (!pilaLlaves.isEmpty()) {
-        errores.add(new LexicalError(linea, 1, "Bloques `{}` sin cerrar."));
         }
 
         return tokens;
-}
+    }
 
     private static Token crearToken(String lexema, int linea, int columna) {
         String lexemaLower = lexema.toLowerCase();

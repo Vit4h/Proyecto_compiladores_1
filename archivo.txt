@@ -1,6 +1,6 @@
-int sum = 5
+int sum = 5;
 if (sum > 2) {  
-    EscribirLinea("Error");
+    EscribirLinea("Error")
 }
 for (int i = 0; i < 10; i++) {  
     EscribirLinea(i);
