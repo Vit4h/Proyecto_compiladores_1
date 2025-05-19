@@ -23,11 +23,29 @@ public interface AlgebraVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitInstruccion(AlgebraParser.InstruccionContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AlgebraParser#asignacion}.
+	 * Visit a parse tree produced by {@link AlgebraParser#declaracion}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitAsignacion(AlgebraParser.AsignacionContext ctx);
+	T visitDeclaracion(AlgebraParser.DeclaracionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AlgebraParser#tipo}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitTipo(AlgebraParser.TipoContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AlgebraParser#listaDeclaradores}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitListaDeclaradores(AlgebraParser.ListaDeclaradoresContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AlgebraParser#declarador}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitDeclarador(AlgebraParser.DeclaradorContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AlgebraParser#expresion}.
 	 * @param ctx the parse tree

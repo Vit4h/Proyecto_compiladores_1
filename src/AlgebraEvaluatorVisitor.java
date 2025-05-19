@@ -1,86 +1,126 @@
 package src;
+
 import src.Parser.AlgebraBaseVisitor;
 import src.Parser.AlgebraParser;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
-public class AlgebraEvaluatorVisitor extends AlgebraBaseVisitor<Double>{
-    private final Map<String, Double> memoria = new HashMap<>();
+public class AlgebraEvaluatorVisitor extends AlgebraBaseVisitor<Number> {
+
+    private final Map<String, Number> memoria = new HashMap<>();
+    private final Map<String, String> tipos = new HashMap<>();
+
     @Override
-    public Double visitProgram(AlgebraParser.ProgramContext ctx) {
+    public Number visitProgram(AlgebraParser.ProgramContext ctx) {
         for (AlgebraParser.InstruccionContext instr : ctx.instruccion()) {
-            visit(instr); // evaluar cada instrucción
+            visit(instr);
         }
-        return 0.0;
+        return 0;
     }
 
     @Override
-    public Double visitAsignacion(AlgebraParser.AsignacionContext ctx) {
-        String variable = ctx.IDENTIFICADOR().getText();
-        Double valor = visit(ctx.expresion());
-        memoria.put(variable, valor);
-        System.out.println("Asignado: " + variable + " = " + valor);
-        return valor;
+    public Number visitDeclaracion(AlgebraParser.DeclaracionContext ctx) {
+        String tipo = ctx.tipo().getText();
+
+        for (AlgebraParser.DeclaradorContext declarador : ctx.listaDeclaradores().declarador()) {
+            String id = declarador.IDENTIFICADOR().getText();
+            Number valor = 0;
+
+            if (declarador.expresion() != null) {
+                valor = visit(declarador.expresion());
+            }
+
+            if (tipo.equals("int") && valor instanceof Double) {
+                double val = valor.doubleValue();
+                if (val != Math.floor(val)) {
+                    throw new RuntimeException("No se puede asignar un double con decimales a una variable int: " + id);
+                }
+                valor = (int) val;
+            }
+            if (tipo.equals("double") && valor instanceof Integer) {
+                valor = ((Integer) valor).doubleValue();
+            }
+            memoria.put(id, valor);
+            tipos.put(id, tipo);
+            System.out.println("Declarado: " + tipo + " " + id + " = " + valor);
+        }
+
+        return 0;
     }
 
     @Override
-    public Double visitExpresion(AlgebraParser.ExpresionContext ctx) {
+    public Number visitExpresion(AlgebraParser.ExpresionContext ctx) {
         return visit(ctx.sumaResta());
     }
 
     @Override
-    public Double visitSumaResta(AlgebraParser.SumaRestaContext ctx) {
-        Double resultado = visit(ctx.multiplicacionDivision(0));
+    public Number visitSumaResta(AlgebraParser.SumaRestaContext ctx) {
+        Number resultado = visit(ctx.multiplicacionDivision(0));
         for (int i = 1; i < ctx.multiplicacionDivision().size(); i++) {
-            Double siguiente = visit(ctx.multiplicacionDivision(i));
-            String operador = ctx.getChild(2 * i - 1).getText();
-            if (operador.equals("+")) {
-                resultado += siguiente;
-            } else {
-                resultado -= siguiente;
-            }
+            Number derecha = visit(ctx.multiplicacionDivision(i));
+            String op = ctx.getChild(2 * i - 1).getText();
+            resultado = operar(resultado, derecha, op);
         }
         return resultado;
     }
 
     @Override
-    public Double visitMultiplicacionDivision(AlgebraParser.MultiplicacionDivisionContext ctx) {
-        Double resultado = visit(ctx.agrupacion(0));
+    public Number visitMultiplicacionDivision(AlgebraParser.MultiplicacionDivisionContext ctx) {
+        Number resultado = visit(ctx.agrupacion(0));
         for (int i = 1; i < ctx.agrupacion().size(); i++) {
-            Double siguiente = visit(ctx.agrupacion(i));
-            String operador = ctx.getChild(2 * i - 1).getText();
-            switch (operador) {
-                case "*": resultado *= siguiente; break;
-                case "/": resultado /= siguiente; break;
-                case "#": resultado %= siguiente; break;
-            }
+            Number derecha = visit(ctx.agrupacion(i));
+            String op = ctx.getChild(2 * i - 1).getText();
+            resultado = operar(resultado, derecha, op);
         }
         return resultado;
     }
 
     @Override
-    public Double visitAgrupacion(AlgebraParser.AgrupacionContext ctx) {
-        if (ctx.expresion() != null) {
-            return visit(ctx.expresion());
-        } else if (ctx.literal() != null) {
-            return visit(ctx.literal());
-        } else if (ctx.IDENTIFICADOR() != null) {
+    public Number visitAgrupacion(AlgebraParser.AgrupacionContext ctx) {
+        if (ctx.expresion() != null) return visit(ctx.expresion());
+        if (ctx.literal() != null) return visit(ctx.literal());
+        if (ctx.IDENTIFICADOR() != null) {
             String id = ctx.IDENTIFICADOR().getText();
-            return memoria.getOrDefault(id, 0.0);
+            if (!memoria.containsKey(id))
+                throw new RuntimeException("Variable no declarada: " + id);
+            return memoria.get(id);
         }
-        return 0.0;
+        return 0;
     }
 
     @Override
-    public Double visitLiteral(AlgebraParser.LiteralContext ctx) {
-        if (ctx.INT() != null) {
-            return Double.parseDouble(ctx.INT().getText());
-        } else {
-            return Double.parseDouble(ctx.DOUBLE().getText());
-        }
+    public Number visitLiteral(AlgebraParser.LiteralContext ctx) {
+        if (ctx.INT_LITERAL() != null)
+            return Integer.parseInt(ctx.INT_LITERAL().getText());
+        else
+            return Double.parseDouble(ctx.DOUBLE_LITERAL().getText());
     }
 
-    public Map<String, Double> getMemoria() {
+    private Number operar(Number izq, Number der, String operador) {
+        boolean isDouble = izq instanceof Double || der instanceof Double;
+        double a = izq.doubleValue();
+        double b = der.doubleValue();
+        double resultado;
+
+        switch (operador) {
+            case "+": resultado = a + b; break;
+            case "-": resultado = a - b; break;
+            case "*": resultado = a * b; break;
+            case "/": resultado = a / b; break;
+            case "#": resultado = a % b; break;
+            default: resultado = 0;
+        }
+
+        if (!isDouble && resultado == Math.floor(resultado)) return (int) resultado;
+        return resultado;
+    }
+
+    public Map<String, Number> getMemoria() {
         return memoria;
+    }
+
+    public Map<String, String> getTipos() {
+        return tipos;
     }
 }

@@ -44,6 +44,8 @@ public class Main {
                     CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
                     AlgebraParser parser = new AlgebraParser(antlrTokens);
 
+                    parser.removeErrorListeners();
+                    parser.addErrorListener(new CustomErrorListener());
                     ParseTree tree = parser.program();  // punto de entrada
 
                     System.out.println("\nÁrbol de sintaxis:");
