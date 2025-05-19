@@ -50,6 +50,32 @@ public class AlgebraEvaluatorVisitor extends AlgebraBaseVisitor<Number> {
     }
 
     @Override
+    public Number visitAsignacion(AlgebraParser.AsignacionContext ctx) {
+        String id = ctx.IDENTIFICADOR().getText();
+        if (!tipos.containsKey(id)) {
+            throw new RuntimeException("Variable no declarada: " + id);
+        }
+
+        Number valor = visit(ctx.expresion());
+        String tipo = tipos.get(id);
+
+        // Forzar al tipo
+        if (tipo.equals("int") && valor instanceof Double) {
+            double val = valor.doubleValue();
+            if (val != Math.floor(val)) {
+                throw new RuntimeException("No se puede asignar un double con decimales a una variable int: " + id);
+            }
+            valor = (int) val;
+        } else if (tipo.equals("double") && valor instanceof Integer) {
+            valor = ((Integer) valor).doubleValue();
+        }
+
+        memoria.put(id, valor);
+        System.out.println("Asignado: " + id + " = " + valor);
+        return valor;
+    }
+
+    @Override
     public Number visitExpresion(AlgebraParser.ExpresionContext ctx) {
         return visit(ctx.sumaResta());
     }

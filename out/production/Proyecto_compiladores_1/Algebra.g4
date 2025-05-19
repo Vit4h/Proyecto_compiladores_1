@@ -23,6 +23,11 @@ program: (instruccion PUNTO_Y_COMA)* EOF ;
 
 instruccion
     : declaracion
+    | asignacion
+    ;
+
+asignacion
+    : IDENTIFICADOR ASIGNACION expresion
     ;
 
 declaracion
