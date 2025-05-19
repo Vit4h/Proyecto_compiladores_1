@@ -1,1 +1,3 @@
- if  ( suma = 1) int cuatro = 4
+int x => {5 + 3};
+int y => x * 2;
+int z => {y / 4 + 1};

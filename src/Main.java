@@ -1,8 +1,16 @@
+package src;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.List;
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.tree.*;
+import src.Parser.AlgebraLexer;
+import src.Parser.AlgebraParser;
+import src.AlgebraEvaluatorVisitor;
+
 
 public class Main {
     public static void main(String[] args) {
@@ -28,6 +36,23 @@ public class Main {
             if (tokens != null) {
                 System.out.println("\nTokens generados:");
                 imprimirTokensCompilador(tokens);
+                if (Lexer.getErrores().isEmpty()) {
+                    System.out.println("\n[ANÁLISIS SINTÁCTICO Y EJECUCIÓN CON ANTLR]");
+                    CharStream input = CharStreams.fromString(contenido.toString());
+
+                    AlgebraLexer antlrLexer = new AlgebraLexer(input);
+                    CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
+                    AlgebraParser parser = new AlgebraParser(antlrTokens);
+
+                    ParseTree tree = parser.program();  // punto de entrada
+
+                    System.out.println("\nÁrbol de sintaxis:");
+                    System.out.println(tree.toStringTree(parser));
+
+                    // Ejecutar con visitor
+                    AlgebraEvaluatorVisitor visitor = new AlgebraEvaluatorVisitor();
+                    visitor.visit(tree);
+                }
             }
 
         } catch (FileNotFoundException e) {
