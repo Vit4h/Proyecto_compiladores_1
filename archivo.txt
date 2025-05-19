@@ -1,6 +1,6 @@
-if sum > 2 {  // Falta el paréntesis de apertura "("
+if (sum > 2) {  
     EscribirLinea("Error");
 }
-for i = 0; i < 10; i++ {  // Falta el paréntesis de apertura "("
+for (i = 0; i < 10; i++) {  
     EscribirLinea(i);
 }
