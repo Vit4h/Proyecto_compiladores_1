@@ -1,4 +1,4 @@
-int sum = 5;
+
 if (sum > 2) {  
     EscribirLinea("Error")
 }
