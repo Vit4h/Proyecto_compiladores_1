@@ -75,6 +75,17 @@ class Lexer {
     private static final List<LexicalError> errores = new ArrayList<>();
     private static final Set<String> variablesDeclaradas = new HashSet<>();
 
+    // Clase interna para seguimiento de paréntesis y llaves
+    private static class ParInfo {
+        int linea;
+        int columna;
+
+        public ParInfo(int linea, int columna) {
+            this.linea = linea;
+            this.columna = columna;
+        }
+    }
+
     public static List<Token> analizarArchivo(String ruta) throws IOException {
         File archivo = new File(ruta);
         if (!archivo.exists()) throw new FileNotFoundException("El archivo no existe: " + ruta);
@@ -83,8 +94,8 @@ class Lexer {
         errores.clear();
         variablesDeclaradas.clear();
 
-        Deque<String> pilaLlaves = new ArrayDeque<>();
-        Deque<String> pilaParentesis = new ArrayDeque<>();
+        Deque<ParInfo> pilaLlaves = new ArrayDeque<>();
+        Deque<ParInfo> pilaParentesis = new ArrayDeque<>();
 
         int numeroLinea = 0;
         boolean enComentarioMultilinea = false;
@@ -125,11 +136,14 @@ class Lexer {
             }
         }
 
-        if (!pilaLlaves.isEmpty()) {
-            errores.add(new LexicalError(-1, 1, "Bloques `{}` sin cerrar."));
+        while (!pilaLlaves.isEmpty()) {
+            ParInfo apertura = pilaLlaves.pop();
+            errores.add(new LexicalError(apertura.linea, apertura.columna, "Llave `{` sin cerrar."));
         }
-        if (!pilaParentesis.isEmpty()) {
-            errores.add(new LexicalError(-1, 1, "Paréntesis `(` sin cerrar."));
+
+        while (!pilaParentesis.isEmpty()) {
+            ParInfo apertura = pilaParentesis.pop();
+            errores.add(new LexicalError(apertura.linea, apertura.columna, "Paréntesis `(` sin cerrar."));
         }
 
         if (!errores.isEmpty()) {
@@ -142,7 +156,7 @@ class Lexer {
         return tokens;
     }
 
-    private static List<Token> analizar(String input, int linea, Deque<String> pilaLlaves, Deque<String> pilaParentesis) {
+    private static List<Token> analizar(String input, int linea, Deque<ParInfo> pilaLlaves, Deque<ParInfo> pilaParentesis) {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = PATRON.matcher(input);
         boolean esDeclaracion = false;
@@ -170,9 +184,8 @@ class Lexer {
                 }
             }
 
-            // PILA DE PARENTESIS
             if (lexema.equals("(")) {
-                pilaParentesis.push("(");
+                pilaParentesis.push(new ParInfo(linea, columna));
             } else if (lexema.equals(")")) {
                 if (pilaParentesis.isEmpty()) {
                     errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
@@ -181,9 +194,8 @@ class Lexer {
                 }
             }
 
-            // PILA DE LLAVES
             if (lexema.equals("{")) {
-                pilaLlaves.push("{");
+                pilaLlaves.push(new ParInfo(linea, columna));
             } else if (lexema.equals("}")) {
                 if (pilaLlaves.isEmpty()) {
                     errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
