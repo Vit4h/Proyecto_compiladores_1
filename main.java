@@ -3,48 +3,63 @@ import java.util.*;
 
 public class main {
     public static void main(String[] args) {
-        String archivo = "archivo.txt"; // archivo de entrada
+        String archivo = "archivo.txt";
 
         try {
             List<Token> tokensArchivo = Lexer.analizarArchivo(archivo);
-            Map<String, Integer> idTablaSimbolos = new LinkedHashMap<>();
-            Map<Integer, String> tokenLineas = new LinkedHashMap<>();
-            int posicionTabla = 1;
 
-            System.out.println("Tokens:");
-            for (int i = 0; i < tokensArchivo.size(); i++) {
-                Token token = tokensArchivo.get(i);
+            Map<String, Token> simbolos = new LinkedHashMap<>();
+            List<Token> tablaTokens = new ArrayList<>();
 
-                // Guardar posición en tabla general para cada identificador
-                if (token.tipo == TokenType.IDENTIFICADOR && !idTablaSimbolos.containsKey(token.valor)) {
-                    idTablaSimbolos.put(token.valor, posicionTabla);
-                }
-
-                posicionTabla++;
-            }
-
-            // Reiniciar para imprimir tabla con posiciones reales
-            posicionTabla = 1;
-            
-
-            // Construir línea de tokens con ID real basado en posición en tabla
+            // Registrar identificadores únicos en tabla de símbolos
             for (Token token : tokensArchivo) {
-                if (token.tipo == TokenType.IDENTIFICADOR) {
-                    System.out.print("< id," + idTablaSimbolos.get(token.valor) + " >");
-                } else if (token.tipo == TokenType.NUMERO || token.tipo == TokenType.LITERAL) {
-                    System.out.print("< " + token.valor + " >");
-                } else {
-                    System.out.print("< " + token.valor + " >");
+                if (token.tipo == TokenType.IDENTIFICADOR && !simbolos.containsKey(token.valor)) {
+                    simbolos.put(token.valor, token);
+                }
+                tablaTokens.add(token);
+            }
+
+            // 🔹 PARTE 1: Línea de tokens con formato especial
+            System.out.println("Tokens:");
+            for (Token token : tokensArchivo) {
+                switch (token.tipo) {
+                    case IDENTIFICADOR:
+                        int idPos = new ArrayList<>(simbolos.keySet()).indexOf(token.valor) + 1;
+                        System.out.print("<id," + idPos + ">");
+                        break;
+                    case NUMERO:
+                        System.out.print("<num," + token.valor + ">");
+                        break;
+                    case LITERAL:
+                        System.out.print("<str," + token.valor + ">");
+                        break;
+                    default:
+                        System.out.print("<" + token.valor + ">");
                 }
             }
 
-            // Imprimir tabla
+            // 🔹 PARTE 2: Tabla general de tokens
             System.out.println("\n\nposicion-----Identificador-------Tipo de Token--------Linea-------Columna");
-
-            posicionTabla = 1;
+            int index = 1;
             for (Token token : tokensArchivo) {
                 System.out.printf("%-13d %-20s %-20s %-10d %-10d%n",
-                        posicionTabla++,
+                        index++,
+                        token.valor,
+                        token.tipo,
+                        token.linea,
+                        token.columna
+                );
+            }
+
+            // 🔹 PARTE 3: Tabla de símbolos (solo identificadores)
+            System.out.println("\nTabla de Símbolos:");
+            System.out.println("posicion-----Identificador-------Tipo de Token--------Linea-------Columna");
+
+            int simboloIndex = 1;
+            for (Map.Entry<String, Token> entry : simbolos.entrySet()) {
+                Token token = entry.getValue();
+                System.out.printf("%-13d %-20s %-20s %-10d %-10d%n",
+                        simboloIndex++,
                         token.valor,
                         token.tipo,
                         token.linea,
