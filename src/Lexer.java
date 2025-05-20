@@ -8,7 +8,6 @@ enum TokenType {
     PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, FUNCION_RESERVADA, ERROR
 }
 
-// Clase para errores léxicos
 class LexicalError {
     int linea;
     int columna;
@@ -26,7 +25,6 @@ class LexicalError {
     }
 }
 
-// Clase Token con información de tipo, valor, línea y columna
 class Token {
     TokenType tipo;
     String valor;
@@ -47,6 +45,7 @@ class Token {
 }
 
 class Lexer {
+
     private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else", "for", "while", "do");
     private static final Set<String> TIPOS_DATO = Set.of("int", "double", "boolean", "char", "string");
     private static final Set<String> FUNCIONES_RESERVADAS = Set.of("EscribirLinea", "Escribir", "Longitud", "aCadena");
@@ -64,8 +63,6 @@ class Lexer {
     private static final String BOOLEANO = "true|false";
     private static final String CHAR = "'([^'\\\\]|\\\\.)'";
     private static final String STRING = "\"([^\"\\\\]|\\\\.)*\"";
-
-    // Expresión regular mejorada para identificadores
     private static final String IDENTIFICADOR = "[a-zA-Z_][a-zA-Z0-9_]*";
 
     private static final Pattern PATRON = Pattern.compile(
@@ -78,26 +75,37 @@ class Lexer {
     private static final List<LexicalError> errores = new ArrayList<>();
     private static final Set<String> variablesDeclaradas = new HashSet<>();
 
-    // Método público para obtener los errores
+    // Clase para seguimiento estructural
+    private static class ParInfo {
+        int linea, columna;
+        public ParInfo(int linea, int columna) {
+            this.linea = linea;
+            this.columna = columna;
+        }
+    }
+
     public static List<LexicalError> getErrores() {
         return errores;
     }
 
-    // Método para analizar texto directamente
     public static List<Token> analizarTexto(String texto) {
         List<Token> tokens = new ArrayList<>();
-        errores.clear(); // Limpiar errores anteriores
+        errores.clear();
         variablesDeclaradas.clear();
 
         boolean enComentarioMultilinea = false;
         int numeroLinea = 0;
 
+        Deque<ParInfo> pilaLlaves = new ArrayDeque<>();
+        Deque<ParInfo> pilaParentesis = new ArrayDeque<>();
+
         String[] lineas = texto.split("\n");
+
         for (String lineaTexto : lineas) {
             numeroLinea++;
             lineaTexto = lineaTexto.trim();
 
-            // Manejo de comentarios
+            // Comentarios multilínea
             if (enComentarioMultilinea) {
                 if (lineaTexto.contains("*/")) {
                     enComentarioMultilinea = false;
@@ -110,7 +118,7 @@ class Lexer {
             if (lineaTexto.contains("/*")) {
                 int inicioComentario = lineaTexto.indexOf("/*");
                 if (lineaTexto.contains("*/")) {
-                    lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
+                    lineaTexto = lineaTexto.replaceAll("/\\*.*?\\*/", "").trim();
                 } else {
                     enComentarioMultilinea = true;
                     lineaTexto = lineaTexto.substring(0, inicioComentario).trim();
@@ -122,20 +130,28 @@ class Lexer {
             }
 
             if (!lineaTexto.isEmpty()) {
-                tokens.addAll(analizar(lineaTexto, numeroLinea));
+                tokens.addAll(analizar(lineaTexto, numeroLinea, pilaLlaves, pilaParentesis));
             }
+        }
+
+        // Validar agrupadores sin cerrar
+        while (!pilaLlaves.isEmpty()) {
+            ParInfo p = pilaLlaves.pop();
+            errores.add(new LexicalError(p.linea, p.columna, "Llave `{` sin cerrar."));
+        }
+        while (!pilaParentesis.isEmpty()) {
+            ParInfo p = pilaParentesis.pop();
+            errores.add(new LexicalError(p.linea, p.columna, "Paréntesis `(` sin cerrar."));
         }
 
         return tokens;
     }
 
-    // Método para analizar una línea de texto
-    private static List<Token> analizar(String input, int linea) {
+    private static List<Token> analizar(String input, int linea, Deque<ParInfo> pilaLlaves, Deque<ParInfo> pilaParentesis) {
         List<Token> tokens = new ArrayList<>();
         Matcher matcher = PATRON.matcher(input);
 
         boolean esDeclaracion = false;
-        String tipoDatoActual = null;
 
         while (matcher.find()) {
             String lexema = matcher.group().trim();
@@ -146,109 +162,64 @@ class Lexer {
             Token token = crearToken(lexema, linea, columna);
             tokens.add(token);
 
-            // Identificar si es una declaración de variable
+            // Control de declaración de variables
             if (token.tipo == TokenType.TIPO_DATO) {
-                esDeclaracion = true; // Estamos en una declaración de variable
-                tipoDatoActual = token.valor;
+                esDeclaracion = true;
             } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
-                // Si estamos en una declaración y encontramos un identificador, es una variable declarada
                 variablesDeclaradas.add(token.valor);
-                esDeclaracion = false; // Reiniciar el estado de declaración
-            } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
-                // Reiniciar el estado de declaración al encontrar un punto y coma
                 esDeclaracion = false;
-                tipoDatoActual = null;
+            } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
+                esDeclaracion = false;
             }
 
-            // Verificar si se usa una variable sin declararse
+            // Validación de variables usadas sin declarar
             if (token.tipo == TokenType.IDENTIFICADOR && !variablesDeclaradas.contains(token.valor)) {
                 errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
+            }
+
+            // Control de agrupadores
+            if (lexema.equals("{")) {
+                pilaLlaves.push(new ParInfo(linea, columna));
+            } else if (lexema.equals("}")) {
+                if (pilaLlaves.isEmpty()) {
+                    errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
+                } else {
+                    pilaLlaves.pop();
+                }
+            }
+
+            if (lexema.equals("(")) {
+                pilaParentesis.push(new ParInfo(linea, columna));
+            } else if (lexema.equals(")")) {
+                if (pilaParentesis.isEmpty()) {
+                    errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
+                } else {
+                    pilaParentesis.pop();
+                }
             }
         }
 
         return tokens;
     }
 
-    // Método para crear un token
     private static Token crearToken(String lexema, int linea, int columna) {
         String lexemaLower = lexema.toLowerCase();
 
-        // Verificar si es una palabra reservada
-        if (PALABRAS_RESERVADAS.contains(lexemaLower)) {
-            return new Token(TokenType.PALABRA_RESERVADA, lexema, linea, columna);
-        }
+        if (PALABRAS_RESERVADAS.contains(lexemaLower)) return new Token(TokenType.PALABRA_RESERVADA, lexema, linea, columna);
+        if (TIPOS_DATO.contains(lexemaLower)) return new Token(TokenType.TIPO_DATO, lexema, linea, columna);
+        if (FUNCIONES_RESERVADAS.contains(lexema)) return new Token(TokenType.FUNCION_RESERVADA, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_COMPARACION)) return new Token(TokenType.OPERADOR_COMPARACION, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_LOGICOS)) return new Token(TokenType.OPERADOR_LOGICO, lexema, linea, columna);
+        if (lexema.matches(OPERADORES_ARITMETICOS)) return new Token(TokenType.OPERADOR, lexema, linea, columna);
+        if (lexema.equals(OPERADOR_ASIGNACION)) return new Token(TokenType.OPERADOR, lexema, linea, columna);
+        if (lexema.matches(AGRUPADORES)) return new Token(TokenType.AGRUPADOR, lexema, linea, columna);
+        if (lexema.matches(PUNTO_Y_COMA_REGEX)) return new Token(TokenType.PUNTO_Y_COMA, lexema, linea, columna);
+        if (lexema.matches(DOUBLE_NUMERO) || lexema.matches(INT_NUMERO)) return new Token(TokenType.NUMERO, lexema, linea, columna);
+        if (lexema.matches(BOOLEANO)) return new Token(TokenType.BOOLEANO, lexema, linea, columna);
+        if (lexema.matches(CHAR)) return new Token(TokenType.CHAR, lexema, linea, columna);
+        if (lexema.matches(STRING)) return new Token(TokenType.LITERAL, lexema, linea, columna);
+        if (lexema.matches(IDENTIFICADOR)) return new Token(TokenType.IDENTIFICADOR, lexema, linea, columna);
 
-        // Verificar si es un tipo de dato
-        if (TIPOS_DATO.contains(lexemaLower)) {
-            return new Token(TokenType.TIPO_DATO, lexema, linea, columna);
-        }
-
-        // Verificar si es una función reservada
-        if (FUNCIONES_RESERVADAS.contains(lexema)) {
-            return new Token(TokenType.FUNCION_RESERVADA, lexema, linea, columna);
-        }
-
-        // Verificar si es un operador de comparación
-        if (lexema.matches(OPERADORES_COMPARACION)) {
-            return new Token(TokenType.OPERADOR_COMPARACION, lexema, linea, columna);
-        }
-
-        // Verificar si es un operador lógico
-        if (lexema.matches(OPERADORES_LOGICOS)) {
-            return new Token(TokenType.OPERADOR_LOGICO, lexema, linea, columna);
-        }
-
-        // Verificar si es un operador aritmético
-        if (lexema.matches(OPERADORES_ARITMETICOS)) {
-            return new Token(TokenType.OPERADOR, lexema, linea, columna);
-        }
-
-        // Verificar si es un operador de asignación
-        if (lexema.equals(OPERADOR_ASIGNACION)) {
-            return new Token(TokenType.OPERADOR, lexema, linea, columna);
-        }
-
-        // Verificar si es un agrupador
-        if (lexema.matches(AGRUPADORES)) {
-            return new Token(TokenType.AGRUPADOR, lexema, linea, columna);
-        }
-
-        // Verificar si es un punto y coma
-        if (lexema.matches(PUNTO_Y_COMA_REGEX)) {
-            return new Token(TokenType.PUNTO_Y_COMA, lexema, linea, columna);
-        }
-
-        // Verificar si es un número entero
-        if (lexema.matches(INT_NUMERO)) {
-            return new Token(TokenType.NUMERO, lexema, linea, columna);
-        }
-
-        // Verificar si es un número decimal
-        if (lexema.matches(DOUBLE_NUMERO)) {
-            return new Token(TokenType.NUMERO, lexema, linea, columna);
-        }
-
-        // Verificar si es un booleano
-        if (lexema.matches(BOOLEANO)) {
-            return new Token(TokenType.BOOLEANO, lexema, linea, columna);
-        }
-
-        // Verificar si es un carácter
-        if (lexema.matches(CHAR)) {
-            return new Token(TokenType.CHAR, lexema, linea, columna);
-        }
-
-        // Verificar si es una cadena
-        if (lexema.matches(STRING)) {
-            return new Token(TokenType.LITERAL, lexema, linea, columna);
-        }
-
-        // Verificar si es un identificador
-        if (lexema.matches(IDENTIFICADOR)) {
-            return new Token(TokenType.IDENTIFICADOR, lexema, linea, columna);
-        }
-
-        // Si no coincide con ningún patrón, es un token desconocido
         errores.add(new LexicalError(linea, columna, "Token desconocido: \"" + lexema + "\"."));
         return new Token(TokenType.ERROR, lexema, linea, columna);
     }
