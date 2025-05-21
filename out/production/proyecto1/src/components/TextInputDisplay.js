@@ -81,21 +81,25 @@ export default function TextInputDisplay() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        if (data.errores && data.errores.length > 0) {
-          const erroresStr = data.errores.map(e =>
-            `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
-          ).join('\n');
-          setError(erroresStr);
-        } else {
-          setError(data.message || "Error al analizar el código");
-        }
-        return;
-      }
+if (data.errores && data.errores.length > 0) {
+  const erroresStr = data.errores.map(e =>
+    `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
+  ).join('\n');
+  setError(erroresStr);
+}
+
 
       setOutput(data.tokens || []);
       setAcciones(data.acciones || []);
       setTablaSimbolos(data.tablaSimbolos || []);
+
+      if (data.errores && data.errores.length > 0) {
+        const erroresStr = data.errores.map(e =>
+          `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
+        ).join('\n');
+        setError(erroresStr);
+      }
+
     } catch (err) {
       setError(`Error de conexión: ${err.message}`);
     } finally {
@@ -190,67 +194,70 @@ export default function TextInputDisplay() {
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
-          {output.length > 0 ? (
-            <div>
-              <div style={{
-                fontFamily: "monospace",
-                backgroundColor: "#fff",
-                padding: "10px",
-                marginBottom: "20px",
-                border: "1px solid #ddd",
-                borderRadius: "4px"
-              }}>
-                {output.map((token, index) => (
-                  <span key={index}>
-                    {formatToken(token)}{' '}
-                  </span>
-                ))}
-              </div>
-
-              {error && (
-                <div style={{
-                  color: "red",
-                  marginTop: "10px",
-                  backgroundColor: "#ffeeee",
-                  padding: "10px",
-                  border: "1px solid #ffcccc",
-                  borderRadius: "4px",
-                  whiteSpace: "pre-wrap"
-                }}>
-                  <strong>Errores encontrados:</strong>
-                  <div style={{ marginTop: "5px" }}>{error}</div>
-                </div>
-              )}
-
-              {tablaSimbolos.length > 0 && (
-                <div style={{ marginTop: "30px" }}>
-                  <h3 style={{ marginBottom: "10px" }}>Tabla de Símbolos</h3>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Posición</th>
-                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Identificador</th>
-                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo de Token</th>
-                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
-                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tablaSimbolos.map((simbolo, index) => (
-                        <tr key={index}>
-                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.posicion ?? index + 1}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.identificador || simbolo.valor}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.tipoToken || simbolo.tipo}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.linea}</td>
-                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.columna}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          {/* Mostrar tokens si hay */}
+          {output.length > 0 && (
+            <div style={{
+              fontFamily: "monospace",
+              backgroundColor: "#fff",
+              padding: "10px",
+              marginBottom: "20px",
+              border: "1px solid #ddd",
+              borderRadius: "4px"
+            }}>
+              {output.map((token, index) => (
+                <span key={index}>
+                  {formatToken(token)}{' '}
+                </span>
+              ))}
             </div>
-          ) : (
+          )}
+
+           {error && (
+             <div style={{
+               color: "red",
+               marginTop: "10px",
+               backgroundColor: "#ffeeee",
+               padding: "10px",
+               border: "1px solid #ffcccc",
+               borderRadius: "4px",
+               whiteSpace: "pre-wrap"
+             }}>
+               <strong>❌ Error encontrado:</strong>
+               <div style={{ marginTop: "5px" }}>{error}</div>
+             </div>
+           )}
+
+          {/* Mostrar tabla si hay */}
+          {tablaSimbolos.length > 0 && (
+            <div style={{ marginTop: "30px" }}>
+              <h3 style={{ marginBottom: "10px" }}>Tabla de Símbolos</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Posición</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Identificador</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo de Token</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
+                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tablaSimbolos.map((simbolo, index) => (
+                    <tr key={index}>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.posicion ?? index + 1}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.identificador || simbolo.valor}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.tipoToken || simbolo.tipo}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.linea}</td>
+                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.columna}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Si no hay tokens, errores ni tabla */}
+          {output.length === 0 && !error && tablaSimbolos.length === 0 && (
             <p>No hay tokens generados.</p>
           )}
         </div>
