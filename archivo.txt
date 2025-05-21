@@ -1,3 +1,5 @@
 int x => {5 + 3};
-double y
-int z = 2 ? 2
+double y;
+y => x * 2;
+int z => {y / 4 + 1};
+int m = 1+4+2;
