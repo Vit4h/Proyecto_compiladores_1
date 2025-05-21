@@ -17,6 +17,10 @@ INT_TIPO: 'int';
 DOUBLE_TIPO: 'double';
 IDENTIFICADOR: [a-zA-Z_][a-zA-Z0-9_]*;
 WS: [ \t\r\n]+ -> skip;
+ERROR_CHAR: . {
+    System.out.println("[Error léxico] Símbolo no reconocido: '" + getText() + "'");
+} -> skip;
+
 
 // Reglas
 program: (instruccion PUNTO_Y_COMA)* EOF ;

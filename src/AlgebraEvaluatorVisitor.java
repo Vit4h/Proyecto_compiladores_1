@@ -3,13 +3,21 @@ package src;
 import src.Parser.AlgebraBaseVisitor;
 import src.Parser.AlgebraParser;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AlgebraEvaluatorVisitor extends AlgebraBaseVisitor<Number> {
 
     private final Map<String, Number> memoria = new HashMap<>();
     private final Map<String, String> tipos = new HashMap<>();
+    private final List<TAC> instruccionesTAC = new ArrayList<>();
+    private int tempCounter = 1;
+
+    private String nuevaTemp() {
+        return "t" + (tempCounter++);
+    }
 
     @Override
     public Number visitProgram(AlgebraParser.ProgramContext ctx) {
@@ -140,6 +148,73 @@ public class AlgebraEvaluatorVisitor extends AlgebraBaseVisitor<Number> {
 
         if (!isDouble && resultado == Math.floor(resultado)) return (int) resultado;
         return resultado;
+    }
+
+    public void generarTAC(AlgebraParser.ProgramContext ctx) {
+        for (AlgebraParser.InstruccionContext instr : ctx.instruccion()) {
+            generarTACDesdeInstruccion(instr);
+        }
+    }
+
+    private void generarTACDesdeInstruccion(AlgebraParser.InstruccionContext instr) {
+        if (instr.asignacion() != null) {
+            String id = instr.asignacion().IDENTIFICADOR().getText();
+            String temp = generarTACDesdeExpr(instr.asignacion().expresion());
+            instruccionesTAC.add(new TAC(id, temp, null, null));
+        } else if (instr.declaracion() != null) {
+            String tipo = instr.declaracion().tipo().getText();
+            for (AlgebraParser.DeclaradorContext d : instr.declaracion().listaDeclaradores().declarador()) {
+                String id = d.IDENTIFICADOR().getText();
+                if (d.expresion() != null) {
+                    String temp = generarTACDesdeExpr(d.expresion());
+                    instruccionesTAC.add(new TAC(id, temp, null, null));
+                } else {
+                    instruccionesTAC.add(new TAC(id, tipo.equals("double") ? "0.0" : "0", null, null));
+                }
+            }
+        }
+    }
+
+    private String generarTACDesdeExpr(AlgebraParser.ExpresionContext ctx) {
+        return generarDesdeSumaResta(ctx.sumaResta());
+    }
+
+    private String generarDesdeSumaResta(AlgebraParser.SumaRestaContext ctx) {
+        String izq = generarDesdeMultiplicacionDivision(ctx.multiplicacionDivision(0));
+        for (int i = 1; i < ctx.multiplicacionDivision().size(); i++) {
+            String der = generarDesdeMultiplicacionDivision(ctx.multiplicacionDivision(i));
+            String op = ctx.getChild(2 * i - 1).getText();
+            String temp = nuevaTemp();
+            instruccionesTAC.add(new TAC(temp, izq, op, der));
+            izq = temp;
+        }
+        return izq;
+    }
+
+    private String generarDesdeMultiplicacionDivision(AlgebraParser.MultiplicacionDivisionContext ctx) {
+        String izq = generarDesdeAgrupacion(ctx.agrupacion(0));
+        for (int i = 1; i < ctx.agrupacion().size(); i++) {
+            String der = generarDesdeAgrupacion(ctx.agrupacion(i));
+            String op = ctx.getChild(2 * i - 1).getText();
+            String temp = nuevaTemp();
+            instruccionesTAC.add(new TAC(temp, izq, op, der));
+            izq = temp;
+        }
+        return izq;
+    }
+
+    private String generarDesdeAgrupacion(AlgebraParser.AgrupacionContext ctx) {
+        if (ctx.expresion() != null) return generarTACDesdeExpr(ctx.expresion());
+        if (ctx.literal() != null) return ctx.literal().getText();
+        if (ctx.IDENTIFICADOR() != null) return ctx.IDENTIFICADOR().getText();
+        return "0";
+    }
+
+    public void imprimirTAC() {
+        System.out.println("\n[CÓDIGO DE TRES DIRECCIONES]");
+        for (TAC t : instruccionesTAC) {
+            System.out.println(t);
+        }
     }
 
     public Map<String, Number> getMemoria() {

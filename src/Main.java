@@ -23,47 +23,52 @@ public class Main {
             }
             reader.close();
 
+            // Ejecutar análisis léxico
             List<Token> tokens = Lexer.analizarTexto(contenido.toString());
 
+            // Mostrar siempre los tokens
+            System.out.println("=== TOKENS GENERADOS ===");
+            imprimirTokensCompilador(tokens);
+
+            // Mostrar errores léxicos si existen
             if (!Lexer.getErrores().isEmpty()) {
-                System.out.println("Se encontraron errores léxicos:");
+                System.out.println("\n=== ERRORES LÉXICOS ===");
                 for (LexicalError error : Lexer.getErrores()) {
                     System.out.println(error);
                 }
+                return; // ⚠️ Evita pasar a ANTLR si hay errores léxicos
             }
 
-            // Siempre imprimir tokens
-            if (tokens != null) {
-                System.out.println("\nTokens generados:");
-                imprimirTokensCompilador(tokens);
-                if (Lexer.getErrores().isEmpty()) {
-                    System.out.println("\n[ANÁLISIS SINTÁCTICO Y EJECUCIÓN CON ANTLR]");
-                    CharStream input = CharStreams.fromString(contenido.toString());
+            // Análisis sintáctico y ejecución
+            System.out.println("\n[ANÁLISIS SINTÁCTICO Y EJECUCIÓN CON ANTLR]");
+            CharStream input = CharStreams.fromString(contenido.toString());
 
-                    AlgebraLexer antlrLexer = new AlgebraLexer(input);
-                    CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
-                    AlgebraParser parser = new AlgebraParser(antlrTokens);
+            AlgebraLexer antlrLexer = new AlgebraLexer(input);
+            antlrLexer.removeErrorListeners();
+            antlrLexer.addErrorListener(new CustomErrorListener());
 
-                    parser.removeErrorListeners();
-                    parser.addErrorListener(new CustomErrorListener());
-                    ParseTree tree = parser.program();  // punto de entrada
+            CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
+            AlgebraParser parser = new AlgebraParser(antlrTokens);
 
-                    System.out.println("\nÁrbol de sintaxis:");
-                    System.out.println(tree.toStringTree(parser));
+            parser.removeErrorListeners();
+            parser.addErrorListener(new CustomErrorListener());
+            AlgebraParser.ProgramContext tree = parser.program();
 
-                    // Ejecutar con visitor
-                    AlgebraEvaluatorVisitor visitor = new AlgebraEvaluatorVisitor();
-                    visitor.visit(tree);
-                }
-            }
+            AlgebraEvaluatorVisitor visitor = new AlgebraEvaluatorVisitor();
+            visitor.visit(tree);
+            visitor.generarTAC(tree);
+            visitor.imprimirTAC();
 
         } catch (FileNotFoundException e) {
             System.out.println("Error: El archivo 'archivo.txt' no se encontró.");
         } catch (IOException e) {
             System.out.println("Error al leer el archivo: " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("Error inesperado durante el análisis: " + e.getMessage());
+            e.printStackTrace();
         }
     }
-    // Imprimir tokens en formato <TIPO,valor> o <TIPO> cuando aplique
+
     private static void imprimirTokensCompilador(List<Token> tokens) {
         if (tokens == null || tokens.isEmpty()) {
             System.out.println("No hay tokens para mostrar.");
@@ -76,32 +81,31 @@ public class Main {
                     System.out.print("<ID>");
                     break;
                 case NUMERO:
-                    System.out.print("<NUM," + token.valor + ">");
+                    System.out.print("<NUM," + token.valor + "> ");
                     break;
                 case OPERADOR:
                 case OPERADOR_COMPARACION:
                 case OPERADOR_LOGICO:
-                    System.out.print("<" + token.valor + ">");
+                    System.out.print("<" + token.valor + "> ");
                     break;
                 case PUNTO_Y_COMA:
-                    System.out.print("<TERMINACION>");
+                    System.out.print("<TERMINACION> ");
                     break;
                 case TIPO_DATO:
                 case PALABRA_RESERVADA:
                 case FUNCION_RESERVADA:
-                    System.out.print("<" + token.tipo.name() + ">");
+                    System.out.print("<" + token.tipo.name() + "> ");
                     break;
                 case BOOLEANO:
                 case CHAR:
                 case LITERAL:
                 case AGRUPADOR:
-                    System.out.print("<" + token.valor + ">");
+                    System.out.print("<" + token.valor + "> ");
                     break;
                 default:
-                    System.out.print("<" + token.tipo.name() + ">");
+                    System.out.print("<" + token.tipo.name() + "> ");
             }
         }
-        System.out.println(); // salto de línea final
+        System.out.println();
     }
-
 }
