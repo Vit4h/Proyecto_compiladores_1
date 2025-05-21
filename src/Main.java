@@ -23,6 +23,26 @@ public class Main {
         server.start();
     }
 
+    private static void imprimirTablaSimbolos(List<Token> tokens) {
+        List<Token> identificadores = new ArrayList<>();
+        Set<String> vistos = new HashSet<>();
+        int posicion = 1;
+
+        System.out.printf("%-10s %-20s %-20s %-10s %-10s%n", "Posición", "Identificador", "Tipo de Token", "Línea", "Columna");
+
+        for (Token token : tokens) {
+            if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
+                System.out.printf("%-10d %-20s %-20s %-10d %-10d%n", posicion, token.valor, token.tipo, token.linea, token.columna);
+                vistos.add(token.valor);
+                posicion++;
+            }
+        }
+
+        if (posicion == 1) {
+            System.out.println("No se encontraron identificadores.");
+        }
+    }
+
     static class AnalyzeHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -58,9 +78,9 @@ public class Main {
             // Registrar errores léxicos
             for (LexicalError error : Lexer.getErrores()) {
                 Map<String, Object> err = new HashMap<>();
-                err.put("linea", error.linea);
-                err.put("columna", error.columna);
-                err.put("mensaje", error.mensaje);
+                err.put("linea", error.getLinea());
+                err.put("columna", error.getColumna());
+                err.put("mensaje", error.getMensaje());
                 errores.add(err);
             }
 
@@ -78,6 +98,30 @@ public class Main {
                 }
                 response.put("tokens", tokensResponse);
 
+                // Tabla de símbolos (identificadores únicos)
+                List<Map<String, Object>> tablaSimbolos = new ArrayList<>();
+                Set<String> vistos = new HashSet<>();
+                int posicion = 1;
+
+                for (Token token : tokens) {
+                    if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
+                        Map<String, Object> simbolo = new HashMap<>();
+                        simbolo.put("posicion", posicion);
+                        simbolo.put("identificador", token.valor);
+                        simbolo.put("tipo", token.tipo.name());
+                        simbolo.put("linea", token.linea);
+                        simbolo.put("columna", token.columna);
+                        tablaSimbolos.add(simbolo);
+                        vistos.add(token.valor);
+                        posicion++;
+                    }
+                }
+
+                response.put("tablaSimbolos", tablaSimbolos);
+
+                // Imprimir en consola
+                imprimirTablaSimbolos(tokens);
+
                 // Análisis con ANTLR
                 CharStream input = CharStreams.fromString(codigo);
                 AlgebraLexer antlrLexer = new AlgebraLexer(input);
@@ -93,7 +137,7 @@ public class Main {
                 visitor.visit(tree);
 
                 response.put("arbol", tree.toStringTree(parser));
-                response.put("acciones", visitor.getAcciones());  // <- Aquí se agregan las acciones
+                response.put("acciones", visitor.getAcciones());
             }
 
             String jsonResponse = gson.toJson(response);

@@ -2,6 +2,7 @@ package src;
 
 import java.util.*;
 import java.util.regex.*;
+import java.util.stream.Collectors;
 
 enum TokenType {
     OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO, AGRUPADOR, NUMERO, IDENTIFICADOR,
@@ -9,14 +10,26 @@ enum TokenType {
 }
 
 class LexicalError {
-    int linea;
-    int columna;
-    String mensaje;
+    private int linea;
+    private int columna;
+    private String mensaje;
 
     public LexicalError(int linea, int columna, String mensaje) {
         this.linea = linea;
         this.columna = columna;
         this.mensaje = mensaje;
+    }
+
+    public int getLinea() {
+        return linea;
+    }
+
+    public int getColumna() {
+        return columna;
+    }
+
+    public String getMensaje() {
+        return mensaje;
     }
 
     @Override
@@ -75,7 +88,6 @@ class Lexer {
     private static final List<LexicalError> errores = new ArrayList<>();
     private static final Set<String> variablesDeclaradas = new HashSet<>();
 
-    // Clase para seguimiento estructural
     private static class ParInfo {
         int linea, columna;
         public ParInfo(int linea, int columna) {
@@ -105,7 +117,6 @@ class Lexer {
             numeroLinea++;
             lineaTexto = lineaTexto.trim();
 
-            // Comentarios multilínea
             if (enComentarioMultilinea) {
                 if (lineaTexto.contains("*/")) {
                     enComentarioMultilinea = false;
@@ -134,7 +145,6 @@ class Lexer {
             }
         }
 
-        // Validar agrupadores sin cerrar
         while (!pilaLlaves.isEmpty()) {
             ParInfo p = pilaLlaves.pop();
             errores.add(new LexicalError(p.linea, p.columna, "Llave `{` sin cerrar."));
@@ -162,7 +172,6 @@ class Lexer {
             Token token = crearToken(lexema, linea, columna);
             tokens.add(token);
 
-            // Control de declaración de variables
             if (token.tipo == TokenType.TIPO_DATO) {
                 esDeclaracion = true;
             } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
@@ -172,12 +181,10 @@ class Lexer {
                 esDeclaracion = false;
             }
 
-            // Validación de variables usadas sin declarar
             if (token.tipo == TokenType.IDENTIFICADOR && !variablesDeclaradas.contains(token.valor)) {
                 errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
             }
 
-            // Control de agrupadores
             if (lexema.equals("{")) {
                 pilaLlaves.push(new ParInfo(linea, columna));
             } else if (lexema.equals("}")) {
@@ -223,4 +230,24 @@ class Lexer {
         errores.add(new LexicalError(linea, columna, "Token desconocido: \"" + lexema + "\"."));
         return new Token(TokenType.ERROR, lexema, linea, columna);
     }
+
+    public static void imprimirTablaSimbolos(List<Token> tokens) {
+        Set<String> vistos = new HashSet<>();
+        int posicion = 1;
+
+        System.out.printf("%-10s %-20s %-20s %-10s %-10s%n", "Posición", "Identificador", "Tipo de Token", "Línea", "Columna");
+
+        for (Token token : tokens) {
+            if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
+                System.out.printf("%-10d %-20s %-20s %-10d %-10d%n", posicion, token.valor, token.tipo, token.linea, token.columna);
+                vistos.add(token.valor);
+                posicion++;
+            }
+        }
+
+        if (posicion == 1) {
+            System.out.println("No se encontraron identificadores.");
+        }
+    }
+
 }

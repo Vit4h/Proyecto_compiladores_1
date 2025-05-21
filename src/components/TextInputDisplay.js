@@ -5,6 +5,8 @@ export default function TextInputDisplay() {
   const [fileContent, setFileContent] = useState("");
   const [file, setFile] = useState(null);
   const [output, setOutput] = useState([]);
+  const [acciones, setAcciones] = useState([]);
+  const [tablaSimbolos, setTablaSimbolos] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +33,6 @@ export default function TextInputDisplay() {
   };
 
   const formatToken = (token) => {
-    // Mapeo de tipos a abreviaturas más cortas
     const typeMap = {
       "NUMERO": "num",
       "IDENTIFICADOR": "id",
@@ -51,7 +52,7 @@ export default function TextInputDisplay() {
 
     const tipo = token.tipo || 'error';
     const valor = token.valor || '?';
-    
+
     return `<${typeMap[tipo] || tipo.toLowerCase()},${valor}>`;
   };
 
@@ -66,6 +67,8 @@ export default function TextInputDisplay() {
     setLoading(true);
     setError("");
     setOutput([]);
+    setAcciones([]);
+    setTablaSimbolos([]);
 
     try {
       const response = await fetch("http://localhost:8081/api/analyze", {
@@ -77,44 +80,35 @@ export default function TextInputDisplay() {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         if (data.errores && data.errores.length > 0) {
-          const erroresStr = data.errores.map(e => 
+          const erroresStr = data.errores.map(e =>
             `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
           ).join('\n');
           setError(erroresStr);
         } else {
           setError(data.message || "Error al analizar el código");
         }
-        setOutput([]);
         return;
       }
 
       setOutput(data.tokens || []);
+      setAcciones(data.acciones || []);
+      setTablaSimbolos(data.tablaSimbolos || []);
     } catch (err) {
       setError(`Error de conexión: ${err.message}`);
-      setOutput([]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "flex-start",
-        minHeight: "100vh",
-        backgroundColor: "#FFFFFF",
-        padding: "20px",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", backgroundColor: "#FFFFFF", padding: "20px" }}>
       <h1 style={{ fontSize: "20px", fontWeight: "bold", marginBottom: "8px" }}>
         Ingresar código fuente
       </h1>
+
       <input
         type="text"
         value={text}
@@ -165,67 +159,40 @@ export default function TextInputDisplay() {
         </p>
       </div>
 
-      {error && (
-        <div style={{ 
-          color: "red", 
-          marginTop: "10px",
-          backgroundColor: "#ffeeee",
-          padding: "10px",
-          border: "1px solid #ffcccc",
-          borderRadius: "4px",
-          whiteSpace: "pre-wrap"
+      {acciones.length > 0 && (
+        <div style={{
+          marginTop: "30px",
+          backgroundColor: "#e0f9e0",
+          border: "2px solid #4CAF50",
+          padding: "15px",
+          borderRadius: "8px",
+          width: "80%",
         }}>
-          <strong>Errores encontrados:</strong>
-          <div style={{ marginTop: "5px" }}>{error}</div>
+          <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#2e7d32", marginBottom: "10px" }}>
+            Acciones Semánticas:
+          </h2>
+          <ul style={{ paddingLeft: "20px", color: "#2e7d32" }}>
+            {acciones.map((accion, index) => (
+              <li key={index} style={{ marginBottom: "5px" }}>{accion}</li>
+            ))}
+          </ul>
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: "30px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "500px",
-        }}
-      >
+      <div style={{ marginTop: "30px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "500px" }}>
         <h1>Entrada</h1>
         <h1>Salida</h1>
       </div>
 
-      <div
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          width: "80%",
-          padding: "0 50px",
-        }}
-      >
-        <div
-          style={{
-            border: "1px solid #ccc",
-            padding: "10px",
-            width: "40%",
-            minHeight: "200px",
-            backgroundColor: "#f7f7f7",
-          }}
-        >
+      <div style={{ marginTop: "20px", display: "flex", justifyContent: "space-between", width: "80%", padding: "0 50px" }}>
+        <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
           <pre>{fileContent || text}</pre>
         </div>
 
-        <div
-          style={{
-            border: "1px solid #ccc",
-            padding: "10px",
-            width: "40%",
-            minHeight: "200px",
-            backgroundColor: "#f7f7f7",
-          }}
-        >
+        <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
           {output.length > 0 ? (
             <div>
-              <div style={{ 
+              <div style={{
                 fontFamily: "monospace",
                 backgroundColor: "#fff",
                 padding: "10px",
@@ -239,27 +206,49 @@ export default function TextInputDisplay() {
                   </span>
                 ))}
               </div>
-              
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo</th>
-                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Valor</th>
-                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
-                    <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {output.map((token, index) => (
-                    <tr key={index}>
-                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.tipo}</td>
-                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.valor}</td>
-                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.linea}</td>
-                      <td style={{ border: "1px solid #ccc", padding: "8px" }}>{token.columna}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+              {error && (
+                <div style={{
+                  color: "red",
+                  marginTop: "10px",
+                  backgroundColor: "#ffeeee",
+                  padding: "10px",
+                  border: "1px solid #ffcccc",
+                  borderRadius: "4px",
+                  whiteSpace: "pre-wrap"
+                }}>
+                  <strong>Errores encontrados:</strong>
+                  <div style={{ marginTop: "5px" }}>{error}</div>
+                </div>
+              )}
+
+              {tablaSimbolos.length > 0 && (
+                <div style={{ marginTop: "30px" }}>
+                  <h3 style={{ marginBottom: "10px" }}>Tabla de Símbolos</h3>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Posición</th>
+                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Identificador</th>
+                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Tipo de Token</th>
+                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Línea</th>
+                        <th style={{ border: "1px solid #ccc", padding: "8px" }}>Columna</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tablaSimbolos.map((simbolo, index) => (
+                        <tr key={index}>
+                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.posicion ?? index + 1}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.identificador || simbolo.valor}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.tipoToken || simbolo.tipo}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.linea}</td>
+                          <td style={{ border: "1px solid #ccc", padding: "8px" }}>{simbolo.columna}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           ) : (
             <p>No hay tokens generados.</p>
