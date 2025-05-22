@@ -7,6 +7,7 @@ export default function TextInputDisplay() {
   const [output, setOutput] = useState([]);
   const [acciones, setAcciones] = useState([]);
   const [tablaSimbolos, setTablaSimbolos] = useState([]);
+  const [codigoIntermedio, setCodigoIntermedio] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +70,7 @@ export default function TextInputDisplay() {
     setOutput([]);
     setAcciones([]);
     setTablaSimbolos([]);
+    setCodigoIntermedio([]);
 
     try {
       const response = await fetch("http://localhost:8081/api/analyze", {
@@ -81,7 +83,6 @@ export default function TextInputDisplay() {
 
       const data = await response.json();
 
-      // Capturar y mostrar errores léxicos y sintácticos
       let erroresStr = "";
 
       if (data.erroresLexicos && data.erroresLexicos.length > 0) {
@@ -99,10 +100,10 @@ export default function TextInputDisplay() {
       }
 
       setError(erroresStr.trim());
-
       setOutput(data.tokens || []);
       setAcciones(data.acciones || []);
       setTablaSimbolos(data.tablaSimbolos || []);
+      setCodigoIntermedio(data.tac || []);
     } catch (err) {
       setError(`Error de conexión: ${err.message}`);
     } finally {
@@ -197,7 +198,7 @@ export default function TextInputDisplay() {
         </div>
 
         <div style={{ border: "1px solid #ccc", padding: "10px", width: "40%", minHeight: "200px", backgroundColor: "#f7f7f7" }}>
-          {/* Mostrar tokens si hay */}
+          {/* Mostrar tokens */}
           {output.length > 0 && (
             <div style={{
               fontFamily: "monospace",
@@ -215,7 +216,7 @@ export default function TextInputDisplay() {
             </div>
           )}
 
-          {/* Mostrar errores si hay */}
+          {/* Mostrar errores */}
           {error && (
             <div style={{
               color: "red",
@@ -231,7 +232,7 @@ export default function TextInputDisplay() {
             </div>
           )}
 
-          {/* Mostrar tabla si hay */}
+          {/* Tabla de símbolos */}
           {tablaSimbolos.length > 0 && (
             <div style={{ marginTop: "30px" }}>
               <h3 style={{ marginBottom: "10px" }}>Tabla de Símbolos</h3>
@@ -260,12 +261,30 @@ export default function TextInputDisplay() {
             </div>
           )}
 
-          {/* Si no hay tokens, errores ni tabla */}
-          {output.length === 0 && !error && tablaSimbolos.length === 0 && (
+          {/* Código intermedio (TAC) */}
+          {codigoIntermedio.length > 0 && (
+            <div style={{ marginTop: "30px" }}>
+              <h3 style={{ marginBottom: "10px" }}>Código Intermedio (TAC)</h3>
+              <pre style={{
+                backgroundColor: "#f4f4f4",
+                padding: "10px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                fontFamily: "monospace"
+              }}>
+                {codigoIntermedio.map((linea, index) => (
+                  <div key={index}>{linea}</div>
+                ))}
+              </pre>
+            </div>
+          )}
+
+          {/* Si no hay nada */}
+          {output.length === 0 && !error && tablaSimbolos.length === 0 && codigoIntermedio.length === 0 && (
             <p>No hay tokens generados.</p>
           )}
         </div>
       </div>
-    </div>
-  );
+ </div>
+);
 }
