@@ -1,18 +1,23 @@
-// Lexer.java
 package src;
 
 import java.util.*;
 import java.util.regex.*;
 
+// ==========================================
+// CLASE TokenType
+// ==========================================
 enum TokenType {
     OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO, AGRUPADOR, NUMERO, IDENTIFICADOR,
     PALABRA_RESERVADA, TIPO_DATO, BOOLEANO, CHAR, LITERAL, PUNTO_Y_COMA, FUNCION_RESERVADA, ERROR
 }
 
+// ==========================================
+// CLASE LexicalError
+// ==========================================
 class LexicalError {
-    private int linea;
-    private int columna;
-    private String mensaje;
+    int linea;
+    int columna;
+    String mensaje;
 
     public LexicalError(int linea, int columna, String mensaje) {
         this.linea = linea;
@@ -23,8 +28,16 @@ class LexicalError {
     public int getLinea() { return linea; }
     public int getColumna() { return columna; }
     public String getMensaje() { return mensaje; }
+
+    @Override
+    public String toString() {
+        return String.format("Error en línea %d, columna %d: %s", linea, columna, mensaje);
+    }
 }
 
+// ==========================================
+// CLASE Token
+// ==========================================
 class Token {
     TokenType tipo;
     String valor;
@@ -37,8 +50,16 @@ class Token {
         this.linea = linea;
         this.columna = columna;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%-15s %-20s %-5d %-5d", valor, tipo, linea, columna);
+    }
 }
 
+// ==========================================
+// CLASE Lexer
+// ==========================================
 public class Lexer {
 
     private static final Set<String> PALABRAS_RESERVADAS = Set.of("if", "else", "for", "while", "do");
@@ -64,7 +85,8 @@ public class Lexer {
             OPERADORES_COMPARACION + "|" + OPERADORES_LOGICOS + "|" + OPERADORES_ARITMETICOS + "|" +
                     OPERADOR_ASIGNACION + "|" + AGRUPADORES + "|" + DOUBLE_NUMERO + "|" + INT_NUMERO + "|" +
                     BOOLEANO + "|" + CHAR + "|" + STRING + "|" + PUNTO_Y_COMA_REGEX + "|" + IDENTIFICADOR + "|" + ESPACIO,
-            Pattern.CASE_INSENSITIVE);
+            Pattern.CASE_INSENSITIVE
+    );
 
     private static final List<LexicalError> errores = new ArrayList<>();
     private static final Set<String> variablesDeclaradas = new HashSet<>();
@@ -85,12 +107,15 @@ public class Lexer {
         List<Token> tokens = new ArrayList<>();
         errores.clear();
         variablesDeclaradas.clear();
+
         boolean enComentarioMultilinea = false;
         int numeroLinea = 0;
+
         Deque<ParInfo> pilaLlaves = new ArrayDeque<>();
         Deque<ParInfo> pilaParentesis = new ArrayDeque<>();
 
         String[] lineas = texto.split("\n");
+
         for (String lineaTexto : lineas) {
             numeroLinea++;
             lineaTexto = lineaTexto.trim();
@@ -99,7 +124,9 @@ public class Lexer {
                 if (lineaTexto.contains("*/")) {
                     enComentarioMultilinea = false;
                     lineaTexto = lineaTexto.substring(lineaTexto.indexOf("*/") + 2).trim();
-                } else continue;
+                } else {
+                    continue;
+                }
             }
 
             if (lineaTexto.contains("/*")) {
@@ -121,8 +148,15 @@ public class Lexer {
             }
         }
 
-        while (!pilaLlaves.isEmpty()) errores.add(new LexicalError(pilaLlaves.pop().linea, pilaLlaves.pop().columna, "Llave `{` sin cerrar."));
-        while (!pilaParentesis.isEmpty()) errores.add(new LexicalError(pilaParentesis.pop().linea, pilaParentesis.pop().columna, "Paréntesis `(` sin cerrar."));
+        while (!pilaLlaves.isEmpty()) {
+            ParInfo p = pilaLlaves.pop();
+            errores.add(new LexicalError(p.linea, p.columna, "Llave `{` sin cerrar."));
+        }
+
+        while (!pilaParentesis.isEmpty()) {
+            ParInfo p = pilaParentesis.pop();
+            errores.add(new LexicalError(p.linea, p.columna, "Paréntesis `(` sin cerrar."));
+        }
 
         return tokens;
     }
@@ -135,13 +169,15 @@ public class Lexer {
         while (matcher.find()) {
             String lexema = matcher.group().trim();
             int columna = matcher.start() + 1;
+
             if (lexema.isEmpty() || lexema.matches(ESPACIO)) continue;
 
             Token token = crearToken(lexema, linea, columna);
             tokens.add(token);
 
-            if (token.tipo == TokenType.TIPO_DATO) esDeclaracion = true;
-            else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
+            if (token.tipo == TokenType.TIPO_DATO) {
+                esDeclaracion = true;
+            } else if (esDeclaracion && token.tipo == TokenType.IDENTIFICADOR) {
                 variablesDeclaradas.add(token.valor);
                 esDeclaracion = false;
             } else if (token.tipo == TokenType.PUNTO_Y_COMA) {
@@ -152,16 +188,24 @@ public class Lexer {
                 errores.add(new LexicalError(linea, columna, "Variable \"" + token.valor + "\" no declarada antes de su uso."));
             }
 
-            if (lexema.equals("{")) pilaLlaves.push(new ParInfo(linea, columna));
-            else if (lexema.equals("}")) {
-                if (pilaLlaves.isEmpty()) errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
-                else pilaLlaves.pop();
+            if (lexema.equals("{")) {
+                pilaLlaves.push(new ParInfo(linea, columna));
+            } else if (lexema.equals("}")) {
+                if (pilaLlaves.isEmpty()) {
+                    errores.add(new LexicalError(linea, columna, "Llave `}` sin `{` de apertura."));
+                } else {
+                    pilaLlaves.pop();
+                }
             }
 
-            if (lexema.equals("(")) pilaParentesis.push(new ParInfo(linea, columna));
-            else if (lexema.equals(")")) {
-                if (pilaParentesis.isEmpty()) errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
-                else pilaParentesis.pop();
+            if (lexema.equals("(")) {
+                pilaParentesis.push(new ParInfo(linea, columna));
+            } else if (lexema.equals(")")) {
+                if (pilaParentesis.isEmpty()) {
+                    errores.add(new LexicalError(linea, columna, "Paréntesis de cierre `)` sin `(` previo."));
+                } else {
+                    pilaParentesis.pop();
+                }
             }
         }
 
@@ -170,6 +214,7 @@ public class Lexer {
 
     private static Token crearToken(String lexema, int linea, int columna) {
         String lower = lexema.toLowerCase();
+
         if (PALABRAS_RESERVADAS.contains(lower)) return new Token(TokenType.PALABRA_RESERVADA, lexema, linea, columna);
         if (TIPOS_DATO.contains(lower)) return new Token(TokenType.TIPO_DATO, lexema, linea, columna);
         if (FUNCIONES_RESERVADAS.contains(lexema)) return new Token(TokenType.FUNCION_RESERVADA, lexema, linea, columna);
@@ -184,7 +229,8 @@ public class Lexer {
         if (lexema.matches(CHAR)) return new Token(TokenType.CHAR, lexema, linea, columna);
         if (lexema.matches(STRING)) return new Token(TokenType.LITERAL, lexema, linea, columna);
         if (lexema.matches(IDENTIFICADOR)) return new Token(TokenType.IDENTIFICADOR, lexema, linea, columna);
+
         errores.add(new LexicalError(linea, columna, "Token desconocido: \"" + lexema + "\"."));
         return new Token(TokenType.ERROR, lexema, linea, columna);
     }
-} // Fin Lexer.java
+}

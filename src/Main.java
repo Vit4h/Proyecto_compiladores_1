@@ -19,34 +19,13 @@ public class Main {
         System.out.println("Servidor iniciado en http://localhost:" + port);
 
         server.createContext("/api/analyze", new AnalyzeHandler());
-        server.setExecutor(null); // Usa el default
+        server.setExecutor(null);
         server.start();
-    }
-
-    private static void imprimirTablaSimbolos(List<Token> tokens) {
-        List<Token> identificadores = new ArrayList<>();
-        Set<String> vistos = new HashSet<>();
-        int posicion = 1;
-
-        System.out.printf("%-10s %-20s %-20s %-10s %-10s%n", "Posición", "Identificador", "Tipo de Token", "Línea", "Columna");
-
-        for (Token token : tokens) {
-            if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
-                System.out.printf("%-10d %-20s %-20s %-10d %-10d%n", posicion, token.valor, token.tipo, token.linea, token.columna);
-                vistos.add(token.valor);
-                posicion++;
-            }
-        }
-
-        if (posicion == 1) {
-            System.out.println("No se encontraron identificadores.");
-        }
     }
 
     static class AnalyzeHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // Configurar encabezados CORS
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
@@ -57,7 +36,7 @@ public class Main {
             }
 
             if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                exchange.sendResponseHeaders(405, -1); // Method Not Allowed
+                exchange.sendResponseHeaders(405, -1);
                 return;
             }
 
@@ -70,76 +49,103 @@ public class Main {
             String codigo = jsonBody.get("code");
 
             Map<String, Object> response = new HashMap<>();
+            List<Map<String, Object>> erroresLexicos = new ArrayList<>();
+            List<Map<String, Object>> erroresSintacticos = new ArrayList<>();
             List<Map<String, Object>> tokensResponse = new ArrayList<>();
-            List<Map<String, Object>> errores = new ArrayList<>();
 
+            // Análisis léxico
             List<Token> tokens = Lexer.analizarTexto(codigo);
 
-            // Registrar errores léxicos
+            for (Token token : tokens) {
+                Map<String, Object> tokenMap = new HashMap<>();
+                tokenMap.put("tipo", token.tipo.name());
+                tokenMap.put("valor", token.valor);
+                tokenMap.put("linea", token.linea);
+                tokenMap.put("columna", token.columna);
+                tokensResponse.add(tokenMap);
+            }
+            response.put("tokens", tokensResponse);
+
             for (LexicalError error : Lexer.getErrores()) {
                 Map<String, Object> err = new HashMap<>();
                 err.put("linea", error.getLinea());
                 err.put("columna", error.getColumna());
                 err.put("mensaje", error.getMensaje());
-                errores.add(err);
+                erroresLexicos.add(err);
+            }
+            if (!erroresLexicos.isEmpty()) {
+                response.put("erroresLexicos", erroresLexicos);
             }
 
-            if (!errores.isEmpty()) {
-                response.put("errores", errores);
-            } else {
-                // Agregar tokens
-                for (Token token : tokens) {
-                    Map<String, Object> tokenMap = new HashMap<>();
-                    tokenMap.put("tipo", token.tipo.name());
-                    tokenMap.put("valor", token.valor);
-                    tokenMap.put("linea", token.linea);
-                    tokenMap.put("columna", token.columna);
-                    tokensResponse.add(tokenMap);
-                }
-                response.put("tokens", tokensResponse);
+            // Tabla de símbolos
+            List<Map<String, Object>> tablaSimbolos = new ArrayList<>();
+            Set<String> vistos = new HashSet<>();
+            int posicion = 1;
 
-                // Tabla de símbolos (identificadores únicos)
-                List<Map<String, Object>> tablaSimbolos = new ArrayList<>();
-                Set<String> vistos = new HashSet<>();
-                int posicion = 1;
-
-                for (Token token : tokens) {
-                    if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
-                        Map<String, Object> simbolo = new HashMap<>();
-                        simbolo.put("posicion", posicion);
-                        simbolo.put("identificador", token.valor);
-                        simbolo.put("tipo", token.tipo.name());
-                        simbolo.put("linea", token.linea);
-                        simbolo.put("columna", token.columna);
-                        tablaSimbolos.add(simbolo);
-                        vistos.add(token.valor);
-                        posicion++;
-                    }
+            List<String> tokensCompilador = new ArrayList<>();
+            for (Token token : tokens) {
+                if (token.tipo == TokenType.IDENTIFICADOR && !vistos.contains(token.valor)) {
+                    Map<String, Object> simbolo = new HashMap<>();
+                    simbolo.put("posicion", posicion++);
+                    simbolo.put("identificador", token.valor);
+                    simbolo.put("tipo", token.tipo.name());
+                    simbolo.put("linea", token.linea);
+                    simbolo.put("columna", token.columna);
+                    tablaSimbolos.add(simbolo);
+                    vistos.add(token.valor);
                 }
 
-                response.put("tablaSimbolos", tablaSimbolos);
+                switch (token.tipo) {
+                    case IDENTIFICADOR -> tokensCompilador.add("<ID>");
+                    case NUMERO -> tokensCompilador.add("<NUM," + token.valor + ">");
+                    case OPERADOR, OPERADOR_COMPARACION, OPERADOR_LOGICO -> tokensCompilador.add("<" + token.valor + ">");
+                    case PUNTO_Y_COMA -> tokensCompilador.add("<TERMINACION>");
+                    case TIPO_DATO, PALABRA_RESERVADA, FUNCION_RESERVADA -> tokensCompilador.add("<" + token.tipo.name() + ">");
+                    case BOOLEANO, CHAR, LITERAL, AGRUPADOR -> tokensCompilador.add("<" + token.valor + ">");
+                    default -> tokensCompilador.add("<" + token.tipo.name() + ">");
+                }
+            }
 
-                // Imprimir en consola
-                imprimirTablaSimbolos(tokens);
+            response.put("tablaSimbolos", tablaSimbolos);
+            response.put("tokensCompilador", tokensCompilador);
 
-                // Análisis con ANTLR
-                CharStream input = CharStreams.fromString(codigo);
-                AlgebraLexer antlrLexer = new AlgebraLexer(input);
-                CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
-                AlgebraParser parser = new AlgebraParser(antlrTokens);
+            // Análisis sintáctico
+            CharStream input = CharStreams.fromString(codigo);
+            AlgebraLexer antlrLexer = new AlgebraLexer(input);
+            CommonTokenStream antlrTokens = new CommonTokenStream(antlrLexer);
+            AlgebraParser parser = new AlgebraParser(antlrTokens);
 
-                parser.removeErrorListeners();
-                parser.addErrorListener(new CustomErrorListener());
+            CustomErrorListener customListener = new CustomErrorListener(erroresSintacticos);
+            antlrLexer.removeErrorListeners();
+            parser.removeErrorListeners();
+            antlrLexer.addErrorListener(customListener);
+            parser.addErrorListener(customListener);
 
+            try {
                 ParseTree tree = parser.program();
+
+                if (!erroresSintacticos.isEmpty()) {
+                    response.put("erroresSintacticos", erroresSintacticos);
+                }
 
                 AlgebraEvaluatorVisitor visitor = new AlgebraEvaluatorVisitor();
                 visitor.visit(tree);
+                visitor.generarTAC((AlgebraParser.ProgramContext) tree);
 
                 response.put("arbol", tree.toStringTree(parser));
                 response.put("acciones", visitor.getAcciones());
+                response.put("tac", visitor.getTAC());
+
+            } catch (Exception e) {
+                erroresSintacticos.add(Map.of(
+                        "linea", -1,
+                        "columna", -1,
+                        "mensaje", "Error fatal en análisis sintáctico: " + e.getMessage()
+                ));
+                response.put("erroresSintacticos", erroresSintacticos);
             }
 
+            // Enviar respuesta
             String jsonResponse = gson.toJson(response);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);

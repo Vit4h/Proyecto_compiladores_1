@@ -1,4 +1,0 @@
-int x => {5 + 3};
-double y
-y => x * 2;
-int z => {y / 4 + 1};

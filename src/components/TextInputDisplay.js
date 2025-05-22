@@ -81,25 +81,28 @@ export default function TextInputDisplay() {
 
       const data = await response.json();
 
-if (data.errores && data.errores.length > 0) {
-  const erroresStr = data.errores.map(e =>
-    `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
-  ).join('\n');
-  setError(erroresStr);
-}
+      // Capturar y mostrar errores léxicos y sintácticos
+      let erroresStr = "";
 
+      if (data.erroresLexicos && data.erroresLexicos.length > 0) {
+        erroresStr += "Errores Léxicos:\n";
+        erroresStr += data.erroresLexicos.map(e =>
+          `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
+        ).join('\n') + '\n\n';
+      }
+
+      if (data.erroresSintacticos && data.erroresSintacticos.length > 0) {
+        erroresStr += "Errores Sintácticos:\n";
+        erroresStr += data.erroresSintacticos.map(e =>
+          `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
+        ).join('\n');
+      }
+
+      setError(erroresStr.trim());
 
       setOutput(data.tokens || []);
       setAcciones(data.acciones || []);
       setTablaSimbolos(data.tablaSimbolos || []);
-
-      if (data.errores && data.errores.length > 0) {
-        const erroresStr = data.errores.map(e =>
-          `Línea ${e.linea}, Columna ${e.columna}: ${e.mensaje}`
-        ).join('\n');
-        setError(erroresStr);
-      }
-
     } catch (err) {
       setError(`Error de conexión: ${err.message}`);
     } finally {
@@ -212,20 +215,21 @@ if (data.errores && data.errores.length > 0) {
             </div>
           )}
 
-           {error && (
-             <div style={{
-               color: "red",
-               marginTop: "10px",
-               backgroundColor: "#ffeeee",
-               padding: "10px",
-               border: "1px solid #ffcccc",
-               borderRadius: "4px",
-               whiteSpace: "pre-wrap"
-             }}>
-               <strong>❌ Error encontrado:</strong>
-               <div style={{ marginTop: "5px" }}>{error}</div>
-             </div>
-           )}
+          {/* Mostrar errores si hay */}
+          {error && (
+            <div style={{
+              color: "red",
+              marginTop: "10px",
+              backgroundColor: "#ffeeee",
+              padding: "10px",
+              border: "1px solid #ffcccc",
+              borderRadius: "4px",
+              whiteSpace: "pre-wrap"
+            }}>
+              <strong>❌ Error encontrado:</strong>
+              <div style={{ marginTop: "5px" }}>{error}</div>
+            </div>
+          )}
 
           {/* Mostrar tabla si hay */}
           {tablaSimbolos.length > 0 && (
